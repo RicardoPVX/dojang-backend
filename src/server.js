@@ -4,12 +4,34 @@ const cors    = require('cors');
 
 const app = express();
 
+// ── Lista blanca de orígenes permitidos ───────────────────────
+const ALLOWED_ORIGINS = [
+  "https://dojang-tm69.vercel.app",
+  "https://dojang-frontend.vercel.app",
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "http://127.0.0.1:5500",
+];
+
 // ── Middlewares globales ──────────────────────────────────────
 app.use(cors({
-  origin: ["https://dojang-tm69.vercel.app", "https://dojang-frontend.vercel.app", "http://localhost:3001", "http://127.0.0.1:5500"],
-  methods: ["GET","POST","PUT","DELETE"],
-  allowedHeaders: ["Content-Type","Authorization"]
-}));                    // permite peticiones desde el frontend
+  origin: (origin, callback) => {
+    // Permite peticiones sin origin (Postman, curl, health checks)
+    if (!origin) return callback(null, true);
+    // Permite cualquier subdominio de vercel.app (deployments preview)
+    if (/\.vercel\.app$/.test(origin)) return callback(null, true);
+    // Permite orígenes de la lista blanca
+    if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+    callback(new Error('CORS: origen no permitido → ' + origin));
+  },
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true,
+}));
+
+// Responder explícitamente a todos los preflight OPTIONS
+app.options('*', cors());
+
 app.use(express.json());            // parsear JSON en el body
 
 // ── Rutas ─────────────────────────────────────────────────────
@@ -21,7 +43,7 @@ app.use('/api/inventario', require('./routes/inventario'));
 app.use('/api/avances',    require('./routes/avances'));
 
 // ── Ruta de salud (para que Render sepa que el server está vivo)
-app.get('/health', (_, res) => res.json({ status: 'ok' }));
+app.get('/health', (_, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
 // ── Inicio ────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3001;
