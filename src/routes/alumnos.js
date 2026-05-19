@@ -135,6 +135,7 @@ router.post('/', auth, allow('admin','instructor'), async (req, res) => {
 // PUT /api/alumnos/:id
 router.put('/:id', auth, allow('admin','instructor'), async (req, res) => {
   const { nombre, fecha_nacimiento, fecha_ingreso, id_cinta_actual,
+          responsable_nombre, responsable_telefono,
           email, direccion, tipo_sangre,
           contacto_emergencia, tel_emergencia, notas_medicas } = req.body;
   try {
@@ -152,6 +153,14 @@ router.put('/:id', auth, allow('admin','instructor'), async (req, res) => {
        req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Alumno no encontrado' });
+    // Actualizar responsable si se enviaron datos
+    if (responsable_nombre) {
+      await pool.query(
+        `UPDATE responsables SET nombre=$1, telefono=COALESCE($2, telefono)
+         WHERE num_control=$3`,
+        [responsable_nombre, responsable_telefono || null, rows[0].num_control_responsable]
+      );
+    }
     res.json(rows[0]);
   } catch (err) {
     console.error(err);
