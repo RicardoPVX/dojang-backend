@@ -36,7 +36,7 @@ router.post('/login', async (req, res) => {
       { expiresIn: '8h' }
     );
 
-    res.json({ token, rol: user.rol, username: user.username });
+    res.json({ token, rol: user.rol, username: user.username, nombre: user.nombre || user.username });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Error del servidor' });
@@ -58,6 +58,23 @@ router.post('/cambiar-pass', auth, async (req, res) => {
     res.json({ ok: true });
   } catch(err) {
     res.status(500).json({ error: 'Error al cambiar contraseña' });
+  }
+});
+
+// PUT /api/auth/perfil — actualizar nombre del usuario
+router.put('/perfil', auth, async (req, res) => {
+  const { nombre } = req.body;
+  if (!nombre || nombre.trim().length < 2)
+    return res.status(400).json({ error: 'Nombre muy corto' });
+  try {
+    await pool.query(
+      'UPDATE usuarios SET nombre=$1 WHERE id_usuario=$2',
+      [nombre.trim(), req.user.id_usuario]
+    );
+    res.json({ ok: true, nombre: nombre.trim() });
+  } catch(err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al actualizar perfil' });
   }
 });
 
