@@ -134,45 +134,26 @@ router.post('/', auth, allow('admin','instructor'), async (req, res) => {
 
 // PUT /api/alumnos/:id
 router.put('/:id', auth, allow('admin','instructor'), async (req, res) => {
-  const { nombre, fecha_nacimiento, fecha_ingreso, id_cinta_actual,
+  const { nombre, fecha_nacimiento, id_cinta_actual,
           email, direccion, tipo_sangre,
-          contacto_emergencia, tel_emergencia, notas_medicas,
-          responsable_nombre, responsable_telefono } = req.body;
-  const client = await pool.connect();
+          contacto_emergencia, tel_emergencia, notas_medicas } = req.body;
   try {
-    await client.query('BEGIN');
-    const { rows } = await client.query(
+    const { rows } = await pool.query(
       `UPDATE alumnos
        SET nombre=$1, fecha_nacimiento=$2, id_cinta_actual=$3,
            email=$4, direccion=$5, tipo_sangre=$6,
-           contacto_emergencia=$7, tel_emergencia=$8, notas_medicas=$9,
-           fecha_ingreso=COALESCE($10, fecha_ingreso)
-       WHERE num_control=$11 RETURNING *`,
+           contacto_emergencia=$7, tel_emergencia=$8, notas_medicas=$9
+       WHERE num_control=$10 RETURNING *`,
       [nombre, fecha_nacimiento, id_cinta_actual,
        email || null, direccion || null, tipo_sangre || null,
        contacto_emergencia || null, tel_emergencia || null, notas_medicas || null,
-       fecha_ingreso || null,
        req.params.id]
     );
-    if (!rows.length) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({ error: 'Alumno no encontrado' });
-    }
-    if (responsable_nombre) {
-      await client.query(
-        `UPDATE responsables SET nombre=$1, telefono=COALESCE($2, telefono)
-         WHERE num_control=$3`,
-        [responsable_nombre, responsable_telefono || null, rows[0].num_control_responsable]
-      );
-    }
-    await client.query('COMMIT');
+    if (!rows.length) return res.status(404).json({ error: 'Alumno no encontrado' });
     res.json(rows[0]);
   } catch (err) {
-    await client.query('ROLLBACK');
     console.error(err);
     res.status(500).json({ error: 'Error al actualizar alumno' });
-  } finally {
-    client.release();
   }
 });
 
