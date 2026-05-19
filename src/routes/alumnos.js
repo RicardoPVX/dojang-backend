@@ -134,26 +134,52 @@ router.post('/', auth, allow('admin','instructor'), async (req, res) => {
 
 // PUT /api/alumnos/:id
 router.put('/:id', auth, allow('admin','instructor'), async (req, res) => {
-  const { nombre, fecha_nacimiento, id_cinta_actual,
+  const { nombre, fecha_nacimiento, fecha_ingreso, id_cinta_actual,
+          responsable_nombre, responsable_telefono, responsable_direccion,
           email, direccion, tipo_sangre,
           contacto_emergencia, tel_emergencia, notas_medicas } = req.body;
+  const client = await pool.connect();
   try {
-    const { rows } = await pool.query(
+    await client.query('BEGIN');
+
+    // Actualizar datos del alumno
+    const { rows } = await client.query(
       `UPDATE alumnos
        SET nombre=$1, fecha_nacimiento=$2, id_cinta_actual=$3,
-           email=$4, direccion=$5, tipo_sangre=$6,
-           contacto_emergencia=$7, tel_emergencia=$8, notas_medicas=$9
-       WHERE num_control=$10 RETURNING *`,
+           fecha_ingreso=COALESCE($4::date, fecha_ingreso),
+           email=$5, direccion=$6, tipo_sangre=$7,
+           contacto_emergencia=$8, tel_emergencia=$9, notas_medicas=$10
+       WHERE num_control=$11 RETURNING *`,
       [nombre, fecha_nacimiento, id_cinta_actual,
+       fecha_ingreso || null,
        email || null, direccion || null, tipo_sangre || null,
        contacto_emergencia || null, tel_emergencia || null, notas_medicas || null,
        req.params.id]
     );
-    if (!rows.length) return res.status(404).json({ error: 'Alumno no encontrado' });
+    if (!rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Alumno no encontrado' });
+    }
+
+    // Actualizar datos del responsable si se enviaron
+    if (responsable_nombre) {
+      const resp_id = `RESP-${req.params.id}`;
+      await client.query(
+        `UPDATE responsables
+         SET nombre=$1, telefono=COALESCE($2, telefono), direccion=COALESCE($3, direccion)
+         WHERE num_control=$4`,
+        [responsable_nombre, responsable_telefono || null, responsable_direccion || null, resp_id]
+      );
+    }
+
+    await client.query('COMMIT');
     res.json(rows[0]);
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error(err);
     res.status(500).json({ error: 'Error al actualizar alumno' });
+  } finally {
+    client.release();
   }
 });
 
