@@ -6,11 +6,25 @@ const app = express();
 
 // ── Middlewares globales ──────────────────────────────────────
 app.use(cors({
-  origin: ["https://dojang-frontend.vercel.app", "http://localhost:3001", "http://127.0.0.1:5500"],
-  methods: ["GET","POST","PUT","DELETE"],
-  allowedHeaders: ["Content-Type","Authorization"]
-}));                    // permite peticiones desde el frontend
-app.use(express.json());            // parsear JSON en el body
+  origin: function(origin, callback) {
+    // Permite cualquier subdominio de vercel.app, localhost y sin origen (Postman, etc.)
+    if (!origin) return callback(null, true);
+    if (
+      origin.endsWith('.vercel.app') ||
+      origin === 'http://localhost:3001' ||
+      origin === 'http://localhost:5500' ||
+      origin === 'http://127.0.0.1:5500'
+    ) {
+      return callback(null, true);
+    }
+    callback(new Error('Not allowed by CORS'));
+  },
+  methods: ["GET","POST","PUT","DELETE","OPTIONS"],
+  allowedHeaders: ["Content-Type","Authorization"],
+  credentials: true
+}));
+app.options('*', cors());
+app.use(express.json());
 
 // ── Rutas ─────────────────────────────────────────────────────
 app.use('/api/auth',       require('./routes/auth'));
@@ -20,7 +34,7 @@ app.use('/api/examenes',   require('./routes/examenes'));
 app.use('/api/inventario', require('./routes/inventario'));
 app.use('/api/avances',    require('./routes/avances'));
 
-// ── Ruta de salud (para que Render sepa que el server está vivo)
+// ── Ruta de salud
 app.get('/health', (_, res) => res.json({ status: 'ok' }));
 
 // ── Inicio ────────────────────────────────────────────────────
