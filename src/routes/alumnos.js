@@ -73,19 +73,27 @@ router.get('/', auth, async (req, res) => {
     if (req.user.rol === 'responsable') {
       query = `
         SELECT a.*, c.color AS cinta_color, c.nombre_grado,
-               r.nombre AS responsable_nombre, r.telefono AS responsable_tel
+               r.nombre AS responsable_nombre, r.telefono AS responsable_tel,
+               cl.id_clase, cl.nombre AS clase_nombre, cl.dia_semana AS clase_dias,
+               cl.hora_inicio AS clase_hora_inicio, cl.hora_fin AS clase_hora_fin
         FROM alumnos a
         JOIN cintas c ON c.id_cinta = a.id_cinta_actual
         JOIN responsables r ON r.num_control = a.num_control_responsable
+        LEFT JOIN inscripciones i ON i.num_control_alumno = a.num_control
+        LEFT JOIN clases cl ON cl.id_clase = i.id_clase
         WHERE a.num_control_responsable = $1 ORDER BY a.nombre`;
       params = [req.user.num_control_responsable];
     } else {
       query = `
         SELECT a.*, c.color AS cinta_color, c.nombre_grado,
-               r.nombre AS responsable_nombre, r.telefono AS responsable_tel
+               r.nombre AS responsable_nombre, r.telefono AS responsable_tel,
+               cl.id_clase, cl.nombre AS clase_nombre, cl.dia_semana AS clase_dias,
+               cl.hora_inicio AS clase_hora_inicio, cl.hora_fin AS clase_hora_fin
         FROM alumnos a
         JOIN cintas c ON c.id_cinta = a.id_cinta_actual
         JOIN responsables r ON r.num_control = a.num_control_responsable
+        LEFT JOIN inscripciones i ON i.num_control_alumno = a.num_control
+        LEFT JOIN clases cl ON cl.id_clase = i.id_clase
         ORDER BY a.nombre`;
     }
     const { rows } = await pool.query(query, params);
@@ -184,6 +192,9 @@ router.delete('/:id', auth, allow('admin'), async (req, res) => {
     }
     const resp_id = alumnoRows[0].num_control_responsable;
 
+    await client.query('DELETE FROM inscripciones WHERE num_control_alumno = $1', [req.params.id]);
+    await client.query('DELETE FROM avances WHERE num_control_alumno = $1', [req.params.id]);
+    await client.query('DELETE FROM examenes WHERE num_control_alumno = $1', [req.params.id]);
     await client.query('DELETE FROM alumnos WHERE num_control = $1', [req.params.id]);
 
     const { rows: otrosAlumnos } = await client.query(
