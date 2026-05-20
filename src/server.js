@@ -33,7 +33,7 @@ app.use('/api/pagos',      require('./routes/pagos'));
 app.use('/api/examenes',   require('./routes/examenes'));
 app.use('/api/inventario', require('./routes/inventario'));
 app.use('/api/avances',    require('./routes/avances'));
-app.use('/api/eventos',    require('./routes/eventos'));
+app.use('/api/torneos',    require('./routes/torneos'));
 
 // ── Ruta de salud
 app.get('/health', (_, res) => res.json({ status: 'ok' }));
