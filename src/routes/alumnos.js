@@ -19,7 +19,6 @@ router.post('/registro-completo', auth, allow('admin','instructor'), async (req,
   const { num_control, nombre, fecha_nacimiento, id_cinta_actual,
           responsable_nombre, responsable_telefono, responsable_direccion,
           username, password,
-          // Nuevos campos del alumno
           email, direccion, tipo_sangre,
           contacto_emergencia, tel_emergencia, notas_medicas } = req.body;
 
@@ -66,27 +65,25 @@ router.post('/registro-completo', auth, allow('admin','instructor'), async (req,
   }
 });
 
-// GET /api/alumnos
+// GET /api/alumnos — incluye clase del alumno
 router.get('/', auth, async (req, res) => {
   try {
     let query, params = [];
+    const base = `
+      SELECT a.*, c.color AS cinta_color, c.nombre_grado,
+             r.nombre AS responsable_nombre, r.telefono AS responsable_tel,
+             cl.id_clase, cl.nombre AS clase_nombre, cl.dia_semana, cl.hora_inicio, cl.hora_fin
+      FROM alumnos a
+      JOIN cintas c ON c.id_cinta = a.id_cinta_actual
+      JOIN responsables r ON r.num_control = a.num_control_responsable
+      LEFT JOIN inscripciones ins ON ins.num_control_alumno = a.num_control
+      LEFT JOIN clases cl ON cl.id_clase = ins.id_clase`;
+
     if (req.user.rol === 'responsable') {
-      query = `
-        SELECT a.*, c.color AS cinta_color, c.nombre_grado,
-               r.nombre AS responsable_nombre, r.telefono AS responsable_tel
-        FROM alumnos a
-        JOIN cintas c ON c.id_cinta = a.id_cinta_actual
-        JOIN responsables r ON r.num_control = a.num_control_responsable
-        WHERE a.num_control_responsable = $1 ORDER BY a.nombre`;
-      params = [req.user.num_control_responsable];
+      query = base + ` WHERE a.num_control_responsable = $1 ORDER BY a.nombre`;
+      params = [req.user.id_responsable || req.user.num_control_responsable];
     } else {
-      query = `
-        SELECT a.*, c.color AS cinta_color, c.nombre_grado,
-               r.nombre AS responsable_nombre, r.telefono AS responsable_tel
-        FROM alumnos a
-        JOIN cintas c ON c.id_cinta = a.id_cinta_actual
-        JOIN responsables r ON r.num_control = a.num_control_responsable
-        ORDER BY a.nombre`;
+      query = base + ` ORDER BY a.nombre`;
     }
     const { rows } = await pool.query(query, params);
     res.json(rows);
@@ -101,10 +98,13 @@ router.get('/:id', auth, async (req, res) => {
   try {
     const { rows } = await pool.query(
       `SELECT a.*, c.color AS cinta_color, c.nombre_grado,
-              r.nombre AS responsable_nombre, r.telefono AS responsable_tel
+              r.nombre AS responsable_nombre, r.telefono AS responsable_tel,
+              cl.id_clase, cl.nombre AS clase_nombre, cl.dia_semana, cl.hora_inicio, cl.hora_fin
        FROM alumnos a
        JOIN cintas c ON c.id_cinta = a.id_cinta_actual
        JOIN responsables r ON r.num_control = a.num_control_responsable
+       LEFT JOIN inscripciones ins ON ins.num_control_alumno = a.num_control
+       LEFT JOIN clases cl ON cl.id_clase = ins.id_clase
        WHERE a.num_control = $1`, [req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Alumno no encontrado' });
@@ -114,31 +114,16 @@ router.get('/:id', auth, async (req, res) => {
   }
 });
 
-// POST /api/alumnos
-router.post('/', auth, allow('admin','instructor'), async (req, res) => {
-  const { num_control, nombre, fecha_nacimiento, id_cinta_actual, num_control_responsable } = req.body;
-  if (!num_control || !nombre || !fecha_nacimiento || !id_cinta_actual || !num_control_responsable)
-    return res.status(400).json({ error: 'Faltan campos obligatorios' });
-  try {
-    const { rows } = await pool.query(
-      `INSERT INTO alumnos (num_control, nombre, fecha_nacimiento, id_cinta_actual, num_control_responsable)
-       VALUES ($1,$2,$3,$4,$5) RETURNING *`,
-      [num_control, nombre, fecha_nacimiento, id_cinta_actual, num_control_responsable]
-    );
-    res.status(201).json(rows[0]);
-  } catch (err) {
-    if (err.code === '23505') return res.status(409).json({ error: 'Num. de control ya existe' });
-    res.status(500).json({ error: 'Error al registrar alumno' });
-  }
-});
-
 // PUT /api/alumnos/:id
 router.put('/:id', auth, allow('admin','instructor'), async (req, res) => {
   const { nombre, fecha_nacimiento, id_cinta_actual,
           email, direccion, tipo_sangre,
-          contacto_emergencia, tel_emergencia, notas_medicas } = req.body;
+          contacto_emergencia, tel_emergencia, notas_medicas,
+          id_clase } = req.body;
+  const client = await pool.connect();
   try {
-    const { rows } = await pool.query(
+    await client.query('BEGIN');
+    const { rows } = await client.query(
       `UPDATE alumnos
        SET nombre=$1, fecha_nacimiento=$2, id_cinta_actual=$3,
            email=$4, direccion=$5, tipo_sangre=$6,
@@ -149,11 +134,26 @@ router.put('/:id', auth, allow('admin','instructor'), async (req, res) => {
        contacto_emergencia || null, tel_emergencia || null, notas_medicas || null,
        req.params.id]
     );
-    if (!rows.length) return res.status(404).json({ error: 'Alumno no encontrado' });
+    if (!rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Alumno no encontrado' });
+    }
+    // Actualizar inscripción de clase
+    await client.query('DELETE FROM inscripciones WHERE num_control_alumno=$1', [req.params.id]);
+    if (id_clase) {
+      await client.query(
+        `INSERT INTO inscripciones (num_control_alumno, id_clase, fecha_ins) VALUES ($1,$2,NOW()::date)`,
+        [req.params.id, id_clase]
+      );
+    }
+    await client.query('COMMIT');
     res.json(rows[0]);
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error(err);
     res.status(500).json({ error: 'Error al actualizar alumno' });
+  } finally {
+    client.release();
   }
 });
 
@@ -173,20 +173,17 @@ router.delete('/:id', auth, allow('admin'), async (req, res) => {
     }
     const resp_id = alumnoRows[0].num_control_responsable;
 
+    // Limpiar relaciones
+    await client.query('DELETE FROM inscripciones WHERE num_control_alumno=$1', [req.params.id]);
     await client.query('DELETE FROM alumnos WHERE num_control = $1', [req.params.id]);
 
     const { rows: otrosAlumnos } = await client.query(
-      `SELECT 1 FROM alumnos WHERE num_control_responsable = $1 LIMIT 1`,
-      [resp_id]
+      `SELECT 1 FROM alumnos WHERE num_control_responsable = $1 LIMIT 1`, [resp_id]
     );
 
     if (otrosAlumnos.length === 0) {
-      await client.query(
-        `DELETE FROM usuarios WHERE num_control_responsable = $1`, [resp_id]
-      );
-      await client.query(
-        `DELETE FROM responsables WHERE num_control = $1`, [resp_id]
-      );
+      await client.query(`DELETE FROM usuarios WHERE num_control_responsable = $1`, [resp_id]);
+      await client.query(`DELETE FROM responsables WHERE num_control = $1`, [resp_id]);
     }
 
     await client.query('COMMIT');
