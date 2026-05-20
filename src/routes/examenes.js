@@ -86,4 +86,12 @@ router.put('/:id', auth, allow('admin','instructor'), async (req, res) => {
   }
 });
 
+// DELETE /api/examenes/:id
+router.delete('/:id', auth, allow('admin','instructor'), async (req, res) => {
+  try {
+    await pool.query('DELETE FROM examenes WHERE id_examen=$1', [req.params.id]);
+    res.json({ mensaje: 'Examen eliminado' });
+  } catch(err) { res.status(500).json({ error: 'Error' }); }
+});
+
 module.exports = router;
