@@ -6,10 +6,23 @@ const app = express();
 
 // ── Middlewares globales ──────────────────────────────────────
 app.use(cors({
-  origin: ["https://dojang-frontend.vercel.app", "http://localhost:3001", "http://127.0.0.1:5500"],
-  methods: ["GET","POST","PUT","DELETE"],
-  allowedHeaders: ["Content-Type","Authorization"]
+  origin: function(origin, callback) {
+    if (!origin) return callback(null, true);
+    if (
+      origin.endsWith('.vercel.app') ||
+      origin === 'http://localhost:3001' ||
+      origin === 'http://localhost:5500' ||
+      origin === 'http://127.0.0.1:5500'
+    ) {
+      return callback(null, true);
+    }
+    callback(new Error('Not allowed by CORS'));
+  },
+  methods: ["GET","POST","PUT","DELETE","OPTIONS"],
+  allowedHeaders: ["Content-Type","Authorization"],
+  credentials: true
 }));
+app.options('*', cors());
 app.use(express.json());
 
 // ── Rutas ─────────────────────────────────────────────────────
