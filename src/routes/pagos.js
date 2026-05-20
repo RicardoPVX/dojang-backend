@@ -80,8 +80,10 @@ router.put('/:id/abonar', auth, allow('admin'), async (req, res) => {
 // DELETE /api/pagos/:id
 router.delete('/:id', auth, allow('admin'), async (req, res) => {
   try {
+    // Eliminar mensualidad asociada si existe
+    await pool.query('DELETE FROM mensualidades WHERE id_pago = $1', [req.params.id]);
     const { rowCount } = await pool.query(
-      `DELETE FROM pagos WHERE id_pago = $1`, [req.params.id]
+      'DELETE FROM pagos WHERE id_pago = $1', [req.params.id]
     );
     if (!rowCount) return res.status(404).json({ error: 'Pago no encontrado' });
     res.json({ mensaje: 'Pago eliminado' });
