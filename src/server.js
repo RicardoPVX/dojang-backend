@@ -19,6 +19,7 @@ app.use('/api/pagos',      require('./routes/pagos'));
 app.use('/api/examenes',   require('./routes/examenes'));
 app.use('/api/inventario', require('./routes/inventario'));
 app.use('/api/avances',    require('./routes/avances'));
+app.use('/api/torneos',    require('./routes/torneos'));
 
 // ── Ruta de salud (para que Render sepa que el server está vivo)
 app.get('/health', (_, res) => res.json({ status: 'ok' }));
