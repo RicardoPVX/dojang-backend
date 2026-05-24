@@ -2,109 +2,138 @@ const router = require('express').Router();
 const pool   = require('../db/pool');
 const { auth, allow } = require('../middleware/auth');
 
-// GET /api/sedes — listar todas las sedes
+// GET /api/sedes?id_torneo=X
 router.get('/', auth, async (req, res) => {
   try {
-    const { rows } = await pool.query(
-      `SELECT * FROM sedes ORDER BY nombre ASC`
-    );
+    const { id_torneo } = req.query;
+    let query = `SELECT s.*, COUNT(i.id_inscripcion)::int AS inscritos
+                 FROM sedes_torneo s
+                 LEFT JOIN inscripciones_torneo i ON i.id_sede = s.id_sede`;
+    const params = [];
+    if (id_torneo) { query += ` WHERE s.id_torneo=$1`; params.push(id_torneo); }
+    query += ` GROUP BY s.id_sede ORDER BY s.nombre_sede`;
+    const { rows } = await pool.query(query, params);
     res.json(rows);
-  } catch (err) {
+  } catch(err) {
+    console.error(err);
     res.status(500).json({ error: 'Error al obtener sedes' });
   }
 });
 
-// GET /api/sedes/:id — obtener una sede con sus torneos
-router.get('/:id', auth, async (req, res) => {
+// GET /api/sedes/torneo/:torneoId/inscritos — alumnos inscritos en un torneo
+router.get('/torneo/:torneoId/inscritos', auth, allow('admin','instructor'), async (req, res) => {
   try {
-    const sede = await pool.query(
-      `SELECT * FROM sedes WHERE id_sede=$1`,
-      [req.params.id]
-    );
-    if (!sede.rows.length)
-      return res.status(404).json({ error: 'Sede no encontrada' });
-
-    const torneos = await pool.query(
-      `SELECT id_torneo, nombre_torneo, fecha FROM torneos
-       WHERE id_sede=$1 ORDER BY fecha ASC`,
-      [req.params.id]
-    );
-
-    res.json({ ...sede.rows[0], torneos: torneos.rows });
-  } catch (err) {
-    res.status(500).json({ error: 'Error al obtener sede' });
+    const { rows } = await pool.query(`
+      SELECT it.id_inscripcion, it.num_control_alumno, it.fecha_inscripcion,
+             a.nombre AS alumno_nombre, a.id_cinta_actual,
+             c.nombre_grado AS cinta_nombre,
+             s.nombre_sede, s.id_sede
+      FROM inscripciones_torneo it
+      JOIN sedes_torneo s ON s.id_sede = it.id_sede
+      JOIN alumnos a ON a.num_control = it.num_control_alumno
+      JOIN cintas c ON c.id_cinta = a.id_cinta_actual
+      WHERE s.id_torneo = $1
+      ORDER BY s.nombre_sede, a.nombre
+    `, [req.params.torneoId]);
+    res.json(rows);
+  } catch(err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al obtener inscritos' });
   }
 });
 
-// POST /api/sedes — crear sede
-router.post('/', auth, allow('admin'), async (req, res) => {
-  const { nombre, ciudad, estado, direccion, capacidad } = req.body;
-  if (!nombre)
-    return res.status(400).json({ error: 'El nombre es obligatorio' });
+// GET /api/sedes/mis-inscripciones — inscripciones del alumno actual
+router.get('/mis-inscripciones', auth, async (req, res) => {
+  try {
+    const alumnoId = req.user.num_control_alumno || req.query.alumno_id;
+    if (!alumnoId) return res.json([]);
+    const { rows } = await pool.query(
+      'SELECT id_sede FROM inscripciones_torneo WHERE num_control_alumno = $1',
+      [alumnoId]
+    );
+    res.json(rows.map(r => r.id_sede));
+  } catch(err) {
+    res.status(500).json({ error: 'Error' });
+  }
+});
+
+// POST /api/sedes — agregar sede a un torneo
+router.post('/', auth, allow('admin','instructor'), async (req, res) => {
+  const { id_torneo, nombre_sede, direccion, cupo_max=0 } = req.body;
+  if (!id_torneo || !nombre_sede)
+    return res.status(400).json({ error: 'Torneo y nombre de sede son obligatorios' });
   try {
     const { rows } = await pool.query(
-      `INSERT INTO sedes (nombre, ciudad, estado, direccion, capacidad, num_visitantes)
-       VALUES ($1,$2,$3,$4,$5,0) RETURNING *`,
-      [nombre, ciudad || null, estado || null, direccion || null, capacidad || null]
+      `INSERT INTO sedes_torneo (id_torneo, nombre_sede, direccion, cupo_max)
+       VALUES ($1,$2,$3,$4) RETURNING *`,
+      [id_torneo, nombre_sede, direccion||null, cupo_max]
     );
     res.status(201).json(rows[0]);
-  } catch (err) {
+  } catch(err) {
     res.status(500).json({ error: 'Error al crear sede' });
   }
 });
 
-// PUT /api/sedes/:id — editar sede
-router.put('/:id', auth, allow('admin'), async (req, res) => {
-  const { nombre, ciudad, estado, direccion, capacidad } = req.body;
-  if (!nombre)
-    return res.status(400).json({ error: 'El nombre es obligatorio' });
+// PUT /api/sedes/:id
+router.put('/:id', auth, allow('admin','instructor'), async (req, res) => {
+  const { nombre_sede, direccion, cupo_max } = req.body;
   try {
     const { rows } = await pool.query(
-      `UPDATE sedes SET nombre=$1, ciudad=$2, estado=$3, direccion=$4, capacidad=$5
-       WHERE id_sede=$6 RETURNING *`,
-      [nombre, ciudad || null, estado || null, direccion || null, capacidad || null, req.params.id]
+      `UPDATE sedes_torneo SET nombre_sede=$1, direccion=$2, cupo_max=$3
+       WHERE id_sede=$4 RETURNING *`,
+      [nombre_sede, direccion||null, cupo_max||0, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Sede no encontrada' });
     res.json(rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: 'Error al actualizar sede' });
-  }
+  } catch(err) { res.status(500).json({ error: 'Error al actualizar sede' }); }
 });
 
-// PATCH /api/sedes/:id/visitantes — actualizar visitantes
-router.patch('/:id/visitantes', auth, allow('admin','instructor'), async (req, res) => {
-  const { num_visitantes } = req.body;
-  if (num_visitantes === undefined || num_visitantes < 0)
-    return res.status(400).json({ error: 'num_visitantes debe ser un número positivo' });
-  try {
-    const { rows } = await pool.query(
-      `UPDATE sedes SET num_visitantes=$1 WHERE id_sede=$2 RETURNING *`,
-      [num_visitantes, req.params.id]
-    );
-    if (!rows.length) return res.status(404).json({ error: 'Sede no encontrada' });
-    res.json(rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: 'Error al actualizar visitantes' });
-  }
-});
-
-// DELETE /api/sedes/:id — eliminar sede (solo si no tiene torneos)
+// DELETE /api/sedes/:id
 router.delete('/:id', auth, allow('admin'), async (req, res) => {
   try {
-    const torneos = await pool.query(
-      `SELECT COUNT(*) FROM torneos WHERE id_sede=$1`, [req.params.id]
-    );
-    if (parseInt(torneos.rows[0].count) > 0)
-      return res.status(400).json({ error: 'No se puede eliminar: la sede tiene torneos asociados' });
-
-    const { rowCount } = await pool.query(
-      'DELETE FROM sedes WHERE id_sede=$1', [req.params.id]
-    );
+    await pool.query('DELETE FROM inscripciones_torneo WHERE id_sede=$1', [req.params.id]);
+    const { rowCount } = await pool.query('DELETE FROM sedes_torneo WHERE id_sede=$1', [req.params.id]);
     if (!rowCount) return res.status(404).json({ error: 'Sede no encontrada' });
     res.json({ mensaje: 'Sede eliminada' });
-  } catch (err) {
-    res.status(500).json({ error: 'Error al eliminar sede' });
+  } catch(err) { res.status(500).json({ error: 'Error al eliminar sede' }); }
+});
+
+// POST /api/sedes/:id/inscribir — alumno se inscribe a una sede
+router.post('/:id/inscribir', auth, async (req, res) => {
+  const { num_control_alumno } = req.body;
+  if (!num_control_alumno)
+    return res.status(400).json({ error: 'num_control_alumno es obligatorio' });
+  try {
+    // Cancelar inscripción previa del alumno en este torneo
+    await pool.query(
+      `DELETE FROM inscripciones_torneo it
+       USING sedes_torneo s
+       WHERE it.id_sede = s.id_sede
+         AND s.id_torneo = (SELECT id_torneo FROM sedes_torneo WHERE id_sede=$1)
+         AND it.num_control_alumno = $2`,
+      [req.params.id, num_control_alumno]
+    );
+    const { rows } = await pool.query(
+      `INSERT INTO inscripciones_torneo (id_sede, num_control_alumno)
+       VALUES ($1,$2) RETURNING *`,
+      [req.params.id, num_control_alumno]
+    );
+    res.status(201).json(rows[0]);
+  } catch(err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al inscribir' });
   }
+});
+
+// DELETE /api/sedes/:id/inscribir/:alumnoId — cancelar inscripción
+router.delete('/:id/inscribir/:alumnoId', auth, async (req, res) => {
+  try {
+    await pool.query(
+      'DELETE FROM inscripciones_torneo WHERE id_sede=$1 AND num_control_alumno=$2',
+      [req.params.id, req.params.alumnoId]
+    );
+    res.json({ mensaje: 'Inscripción cancelada' });
+  } catch(err) { res.status(500).json({ error: 'Error al cancelar' }); }
 });
 
 module.exports = router;
