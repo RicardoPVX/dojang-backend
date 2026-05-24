@@ -7,6 +7,7 @@ const app = express();
 // ── Middlewares globales ──────────────────────────────────────
 app.use(cors({
   origin: function(origin, callback) {
+    // Permite cualquier subdominio de vercel.app, localhost y sin origen (Postman, etc.)
     if (!origin) return callback(null, true);
     if (
       origin.endsWith('.vercel.app') ||
@@ -26,15 +27,18 @@ app.options('*', cors());
 app.use(express.json());
 
 // ── Rutas ─────────────────────────────────────────────────────
-app.use('/api/auth',         require('./routes/auth'));
-app.use('/api/alumnos',      require('./routes/alumnos'));
-app.use('/api/pagos',        require('./routes/pagos'));
-app.use('/api/examenes',     require('./routes/examenes'));
-app.use('/api/inventario',   require('./routes/inventario'));
-app.use('/api/avances',      require('./routes/avances'));
-app.use('/api/torneos',      require('./routes/torneos'));
-app.use('/api/clases',       require('./routes/clases'));
+app.use('/api/auth',       require('./routes/auth'));
+app.use('/api/alumnos',    require('./routes/alumnos'));
+app.use('/api/pagos',      require('./routes/pagos'));
+app.use('/api/examenes',   require('./routes/examenes'));
+app.use('/api/inventario', require('./routes/inventario'));
+app.use('/api/avances',    require('./routes/avances'));
+app.use('/api/torneos',    require('./routes/torneos'));
+app.use('/api/clases',     require('./routes/clases'));
 app.use('/api/instructores', require('./routes/instructores'));
+app.use('/api/lockers',     require('./routes/lockers'));
+app.use('/api/sedes',       require('./routes/sedes'));
+app.use('/api/equipo',     require('./routes/equipo'));
 
 // ── Ruta de salud
 app.get('/health', (_, res) => res.json({ status: 'ok' }));
