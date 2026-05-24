@@ -45,6 +45,40 @@ router.put('/:id', auth, allow('admin'), async (req, res) => {
   }
 });
 
+// PUT /api/equipo/:id/prestar — asignar equipo a alumno
+router.put('/:id/prestar', auth, allow('admin','instructor'), async (req, res) => {
+  const { num_control_alumno } = req.body;
+  if (!num_control_alumno)
+    return res.status(400).json({ error: 'num_control_alumno es obligatorio' });
+  try {
+    const { rows } = await pool.query(
+      `UPDATE equipo SET num_control_alumno_prestamo=$1, fecha_prestamo=CURRENT_DATE
+       WHERE id_articulo=$2 RETURNING *`,
+      [num_control_alumno, req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Artículo no encontrado' });
+    res.json(rows[0]);
+  } catch(err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al prestar equipo' });
+  }
+});
+
+// PUT /api/equipo/:id/liberar — liberar equipo
+router.put('/:id/liberar', auth, allow('admin','instructor'), async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `UPDATE equipo SET num_control_alumno_prestamo=NULL, fecha_prestamo=NULL
+       WHERE id_articulo=$1 RETURNING *`,
+      [req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Artículo no encontrado' });
+    res.json(rows[0]);
+  } catch(err) {
+    res.status(500).json({ error: 'Error al liberar equipo' });
+  }
+});
+
 // DELETE /api/equipo/:id
 router.delete('/:id', auth, allow('admin'), async (req, res) => {
   try {
