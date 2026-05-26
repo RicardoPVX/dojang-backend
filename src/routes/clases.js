@@ -53,14 +53,14 @@ router.get('/', auth, async (req, res) => {
 
 // POST /api/clases
 router.post('/', auth, allow('admin'), async (req, res) => {
-  const { nombre, dia_semana, hora_inicio, hora_fin } = req.body;
+  const { nombre, dia_semana, hora_inicio, hora_fin, id_instructor } = req.body;
   if (!dia_semana || !hora_inicio || !hora_fin)
     return res.status(400).json({ error: 'Días y horario son obligatorios' });
   try {
     const { rows } = await pool.query(
       `INSERT INTO clases (nombre, dia_semana, hora_inicio, hora_fin, id_instructor)
-       VALUES ($1,$2,$3,$4,1) RETURNING *`,
-      [nombre||'Clase', dia_semana, hora_inicio, hora_fin]
+       VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+      [nombre||'Clase', dia_semana, hora_inicio, hora_fin, id_instructor || 1]
     );
     res.status(201).json(rows[0]);
   } catch(err) {
@@ -70,12 +70,12 @@ router.post('/', auth, allow('admin'), async (req, res) => {
 
 // PUT /api/clases/:id
 router.put('/:id', auth, allow('admin'), async (req, res) => {
-  const { nombre, dia_semana, hora_inicio, hora_fin } = req.body;
+  const { nombre, dia_semana, hora_inicio, hora_fin, id_instructor } = req.body;
   try {
     const { rows } = await pool.query(
-      `UPDATE clases SET nombre=$1, dia_semana=$2, hora_inicio=$3, hora_fin=$4
-       WHERE id_clase=$5 RETURNING *`,
-      [nombre, dia_semana, hora_inicio, hora_fin, req.params.id]
+      `UPDATE clases SET nombre=$1, dia_semana=$2, hora_inicio=$3, hora_fin=$4, id_instructor=$5
+       WHERE id_clase=$6 RETURNING *`,
+      [nombre, dia_semana, hora_inicio, hora_fin, id_instructor, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Clase no encontrada' });
     res.json(rows[0]);
