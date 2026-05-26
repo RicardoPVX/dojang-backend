@@ -71,6 +71,7 @@ router.get('/', auth, async (req, res) => {
   try {
     let query, params = [];
     if (req.user.rol === 'responsable') {
+<<<<<<< HEAD
       query = `
         SELECT a.*, c.color AS cinta_color, c.nombre_grado,
                r.nombre AS responsable_nombre, r.telefono AS responsable_tel,
@@ -83,6 +84,36 @@ router.get('/', auth, async (req, res) => {
         LEFT JOIN clases cl ON cl.id_clase = i.id_clase
         WHERE a.num_control_responsable = $1 ORDER BY a.nombre`;
       params = [req.user.num_control_responsable];
+=======
+      if (req.user.id_responsable) {
+        query = `
+          SELECT a.*, c.color AS cinta_color, c.nombre_grado,
+                 r.nombre AS responsable_nombre, r.telefono AS responsable_tel,
+                 cl.id_clase, cl.nombre AS clase_nombre, cl.dia_semana AS clase_dias,
+                 cl.hora_inicio AS clase_hora_inicio, cl.hora_fin AS clase_hora_fin
+          FROM alumnos a
+          JOIN cintas c ON c.id_cinta = a.id_cinta_actual
+          JOIN responsables r ON r.num_control = a.num_control_responsable
+          LEFT JOIN inscripciones i ON i.num_control_alumno = a.num_control
+          LEFT JOIN clases cl ON cl.id_clase = i.id_clase
+          WHERE a.num_control_responsable = $1 ORDER BY a.nombre`;
+        params = [req.user.id_responsable];
+      } else {
+        // Fallback: buscar por username (num_control del alumno)
+        query = `
+          SELECT a.*, c.color AS cinta_color, c.nombre_grado,
+                 r.nombre AS responsable_nombre, r.telefono AS responsable_tel,
+                 cl.id_clase, cl.nombre AS clase_nombre, cl.dia_semana AS clase_dias,
+                 cl.hora_inicio AS clase_hora_inicio, cl.hora_fin AS clase_hora_fin
+          FROM alumnos a
+          JOIN cintas c ON c.id_cinta = a.id_cinta_actual
+          JOIN responsables r ON r.num_control = a.num_control_responsable
+          LEFT JOIN inscripciones i ON i.num_control_alumno = a.num_control
+          LEFT JOIN clases cl ON cl.id_clase = i.id_clase
+          WHERE a.num_control = $1 ORDER BY a.nombre`;
+        params = [req.user.username];
+      }
+>>>>>>> 8992a03d82aeb5ef56da295ad5430bb69d896f27
     } else {
       query = `
         SELECT a.*, c.color AS cinta_color, c.nombre_grado,

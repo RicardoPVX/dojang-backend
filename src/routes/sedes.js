@@ -20,6 +20,46 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
+<<<<<<< HEAD
+=======
+// GET /api/sedes/torneo/:torneoId/inscritos — alumnos inscritos en un torneo
+router.get('/torneo/:torneoId/inscritos', auth, allow('admin','instructor'), async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT it.id_inscripcion, it.num_control_alumno, it.fecha_inscripcion,
+             a.nombre AS alumno_nombre, a.id_cinta_actual,
+             c.nombre_grado AS cinta_nombre,
+             s.nombre_sede, s.id_sede
+      FROM inscripciones_torneo it
+      JOIN sedes_torneo s ON s.id_sede = it.id_sede
+      JOIN alumnos a ON a.num_control = it.num_control_alumno
+      JOIN cintas c ON c.id_cinta = a.id_cinta_actual
+      WHERE s.id_torneo = $1
+      ORDER BY s.nombre_sede, a.nombre
+    `, [req.params.torneoId]);
+    res.json(rows);
+  } catch(err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al obtener inscritos' });
+  }
+});
+
+// GET /api/sedes/mis-inscripciones — inscripciones del alumno actual
+router.get('/mis-inscripciones', auth, async (req, res) => {
+  try {
+    const alumnoId = req.user.num_control_alumno || req.query.alumno_id;
+    if (!alumnoId) return res.json([]);
+    const { rows } = await pool.query(
+      'SELECT id_sede FROM inscripciones_torneo WHERE num_control_alumno = $1',
+      [alumnoId]
+    );
+    res.json(rows.map(r => r.id_sede));
+  } catch(err) {
+    res.status(500).json({ error: 'Error' });
+  }
+});
+
+>>>>>>> 8992a03d82aeb5ef56da295ad5430bb69d896f27
 // POST /api/sedes — agregar sede a un torneo
 router.post('/', auth, allow('admin','instructor'), async (req, res) => {
   const { id_torneo, nombre_sede, direccion, cupo_max=0 } = req.body;
