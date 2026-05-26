@@ -71,60 +71,21 @@ router.get('/', auth, async (req, res) => {
   try {
     let query, params = [];
     if (req.user.rol === 'responsable') {
-<<<<<<< HEAD
       query = `
         SELECT a.*, c.color AS cinta_color, c.nombre_grado,
-               r.nombre AS responsable_nombre, r.telefono AS responsable_tel,
-               cl.id_clase, cl.nombre AS clase_nombre, cl.dia_semana AS clase_dias,
-               cl.hora_inicio AS clase_hora_inicio, cl.hora_fin AS clase_hora_fin
+               r.nombre AS responsable_nombre, r.telefono AS responsable_tel
         FROM alumnos a
         JOIN cintas c ON c.id_cinta = a.id_cinta_actual
         JOIN responsables r ON r.num_control = a.num_control_responsable
-        LEFT JOIN inscripciones i ON i.num_control_alumno = a.num_control
-        LEFT JOIN clases cl ON cl.id_clase = i.id_clase
         WHERE a.num_control_responsable = $1 ORDER BY a.nombre`;
       params = [req.user.num_control_responsable];
-=======
-      if (req.user.id_responsable) {
-        query = `
-          SELECT a.*, c.color AS cinta_color, c.nombre_grado,
-                 r.nombre AS responsable_nombre, r.telefono AS responsable_tel,
-                 cl.id_clase, cl.nombre AS clase_nombre, cl.dia_semana AS clase_dias,
-                 cl.hora_inicio AS clase_hora_inicio, cl.hora_fin AS clase_hora_fin
-          FROM alumnos a
-          JOIN cintas c ON c.id_cinta = a.id_cinta_actual
-          JOIN responsables r ON r.num_control = a.num_control_responsable
-          LEFT JOIN inscripciones i ON i.num_control_alumno = a.num_control
-          LEFT JOIN clases cl ON cl.id_clase = i.id_clase
-          WHERE a.num_control_responsable = $1 ORDER BY a.nombre`;
-        params = [req.user.id_responsable];
-      } else {
-        // Fallback: buscar por username (num_control del alumno)
-        query = `
-          SELECT a.*, c.color AS cinta_color, c.nombre_grado,
-                 r.nombre AS responsable_nombre, r.telefono AS responsable_tel,
-                 cl.id_clase, cl.nombre AS clase_nombre, cl.dia_semana AS clase_dias,
-                 cl.hora_inicio AS clase_hora_inicio, cl.hora_fin AS clase_hora_fin
-          FROM alumnos a
-          JOIN cintas c ON c.id_cinta = a.id_cinta_actual
-          JOIN responsables r ON r.num_control = a.num_control_responsable
-          LEFT JOIN inscripciones i ON i.num_control_alumno = a.num_control
-          LEFT JOIN clases cl ON cl.id_clase = i.id_clase
-          WHERE a.num_control = $1 ORDER BY a.nombre`;
-        params = [req.user.username];
-      }
->>>>>>> 8992a03d82aeb5ef56da295ad5430bb69d896f27
     } else {
       query = `
         SELECT a.*, c.color AS cinta_color, c.nombre_grado,
-               r.nombre AS responsable_nombre, r.telefono AS responsable_tel,
-               cl.id_clase, cl.nombre AS clase_nombre, cl.dia_semana AS clase_dias,
-               cl.hora_inicio AS clase_hora_inicio, cl.hora_fin AS clase_hora_fin
+               r.nombre AS responsable_nombre, r.telefono AS responsable_tel
         FROM alumnos a
         JOIN cintas c ON c.id_cinta = a.id_cinta_actual
         JOIN responsables r ON r.num_control = a.num_control_responsable
-        LEFT JOIN inscripciones i ON i.num_control_alumno = a.num_control
-        LEFT JOIN clases cl ON cl.id_clase = i.id_clase
         ORDER BY a.nombre`;
     }
     const { rows } = await pool.query(query, params);
@@ -174,7 +135,6 @@ router.post('/', auth, allow('admin','instructor'), async (req, res) => {
 // PUT /api/alumnos/:id
 router.put('/:id', auth, allow('admin','instructor'), async (req, res) => {
   const { nombre, fecha_nacimiento, fecha_ingreso, id_cinta_actual,
-          responsable_nombre, responsable_telefono,
           email, direccion, tipo_sangre,
           contacto_emergencia, tel_emergencia, notas_medicas } = req.body;
   try {
@@ -192,14 +152,6 @@ router.put('/:id', auth, allow('admin','instructor'), async (req, res) => {
        req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Alumno no encontrado' });
-    // Actualizar responsable si se enviaron datos
-    if (responsable_nombre) {
-      await pool.query(
-        `UPDATE responsables SET nombre=$1, telefono=COALESCE($2, telefono)
-         WHERE num_control=$3`,
-        [responsable_nombre, responsable_telefono || null, rows[0].num_control_responsable]
-      );
-    }
     res.json(rows[0]);
   } catch (err) {
     console.error(err);
@@ -223,9 +175,6 @@ router.delete('/:id', auth, allow('admin'), async (req, res) => {
     }
     const resp_id = alumnoRows[0].num_control_responsable;
 
-    await client.query('DELETE FROM inscripciones WHERE num_control_alumno = $1', [req.params.id]);
-    await client.query('DELETE FROM avances WHERE num_control_alumno = $1', [req.params.id]);
-    await client.query('DELETE FROM examenes WHERE num_control_alumno = $1', [req.params.id]);
     await client.query('DELETE FROM alumnos WHERE num_control = $1', [req.params.id]);
 
     const { rows: otrosAlumnos } = await client.query(
