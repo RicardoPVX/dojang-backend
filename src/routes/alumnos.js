@@ -175,6 +175,12 @@ router.delete('/:id', auth, allow('admin'), async (req, res) => {
     }
     const resp_id = alumnoRows[0].num_control_responsable;
 
+    // Borrar registros hijos (sin esto la FK bloquea el DELETE)
+    await client.query('DELETE FROM avances       WHERE num_control_alumno = $1', [req.params.id]);
+    await client.query('DELETE FROM examenes      WHERE num_control_alumno = $1', [req.params.id]);
+    await client.query('DELETE FROM torneos       WHERE num_control_alumno = $1', [req.params.id]);
+    await client.query('DELETE FROM inscripciones WHERE num_control_alumno = $1', [req.params.id]);
+
     await client.query('DELETE FROM alumnos WHERE num_control = $1', [req.params.id]);
 
     const { rows: otrosAlumnos } = await client.query(
@@ -182,17 +188,16 @@ router.delete('/:id', auth, allow('admin'), async (req, res) => {
       [resp_id]
     );
 
+    // Si ya no le quedan alumnos: quitamos su acceso (usuario),
+    // pero CONSERVAMOS responsable + pagos + mensualidades por historial contable.
     if (otrosAlumnos.length === 0) {
       await client.query(
         `DELETE FROM usuarios WHERE num_control_responsable = $1`, [resp_id]
       );
-      await client.query(
-        `DELETE FROM responsables WHERE num_control = $1`, [resp_id]
-      );
     }
 
     await client.query('COMMIT');
-    res.json({ mensaje: 'Alumno eliminado' });
+    res.json({ mensaje: 'Alumno eliminado correctamente' });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error(err);
