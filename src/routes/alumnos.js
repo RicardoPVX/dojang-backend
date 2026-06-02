@@ -175,11 +175,41 @@ router.delete('/:id', auth, allow('admin'), async (req, res) => {
     }
     const resp_id = alumnoRows[0].num_control_responsable;
 
-    // Borrar registros hijos (sin esto la FK bloquea el DELETE)
-    await client.query('DELETE FROM avances       WHERE num_control_alumno = $1', [req.params.id]);
-    await client.query('DELETE FROM examenes      WHERE num_control_alumno = $1', [req.params.id]);
-    await client.query('DELETE FROM torneos       WHERE num_control_alumno = $1', [req.params.id]);
-    await client.query('DELETE FROM inscripciones WHERE num_control_alumno = $1', [req.params.id]);
+    // Buscar TODAS las tablas que tienen una llave foránea hacia alumnos(num_control),
+    // incluso las que no están en schema.sql (lockers, inscripciones_torneo, etc.).
+    const { rows: refs } = await client.query(`
+      SELECT kcu.table_name, kcu.column_name, col.is_nullable
+      FROM information_schema.table_constraints tc
+      JOIN information_schema.key_column_usage kcu
+        ON tc.constraint_name = kcu.constraint_name
+       AND tc.table_schema    = kcu.table_schema
+      JOIN information_schema.constraint_column_usage ccu
+        ON ccu.constraint_name = tc.constraint_name
+       AND ccu.table_schema    = tc.table_schema
+      JOIN information_schema.columns col
+        ON col.table_schema = kcu.table_schema
+       AND col.table_name   = kcu.table_name
+       AND col.column_name  = kcu.column_name
+      WHERE tc.constraint_type = 'FOREIGN KEY'
+        AND ccu.table_name  = 'alumnos'
+        AND ccu.column_name = 'num_control'
+    `);
+
+    // Limpiar cada referencia: si la columna admite NULL se desvincula (p.ej. lockers),
+    // si es obligatoria se borra la fila (p.ej. inscripciones, exámenes, avances).
+    for (const ref of refs) {
+      if (ref.is_nullable === 'YES') {
+        await client.query(
+          `UPDATE "${ref.table_name}" SET "${ref.column_name}" = NULL WHERE "${ref.column_name}" = $1`,
+          [req.params.id]
+        );
+      } else {
+        await client.query(
+          `DELETE FROM "${ref.table_name}" WHERE "${ref.column_name}" = $1`,
+          [req.params.id]
+        );
+      }
+    }
 
     await client.query('DELETE FROM alumnos WHERE num_control = $1', [req.params.id]);
 
