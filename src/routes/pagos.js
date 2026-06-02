@@ -24,7 +24,7 @@ router.get('/', auth, async (req, res) => {
 });
 
 // POST /api/pagos  — registrar pago (mensualidad, equipo, examen…)
-router.post('/', auth, allow('admin','instructor'), async (req, res) => {
+router.post('/', auth, allow('admin'), async (req, res) => {
   const { monto_total, monto_abonado = 0, fecha_pago, metodo_pago,
           tipo_pago, estado_pago = 'Pendiente', num_control_responsable } = req.body;
 

@@ -3,6 +3,22 @@ const pool    = require('../db/pool');
 const bcrypt  = require('bcrypt');
 const { auth, allow } = require('../middleware/auth');
 
+// GET /api/instructores/publico — sin token, para que el login reconozca maestros
+router.get('/publico', async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT u.username, i.nombre
+      FROM usuarios u
+      JOIN instructores i ON i.id_instructor = u.id_instructor
+      WHERE u.rol = 'instructor'
+      ORDER BY i.nombre
+    `);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Error' });
+  }
+});
+
 // GET /api/instructores
 router.get('/', auth, async (req, res) => {
   try {
@@ -58,7 +74,7 @@ router.post('/', auth, allow('admin'), async (req, res) => {
     const hash = await bcrypt.hash(password, 10);
     await client.query(
       `INSERT INTO usuarios (username, password, rol, id_instructor, nombre)
-       VALUES ($1,$2,'admin',$3,$4)`,
+       VALUES ($1,$2,'instructor',$3,$4)`,
       [username, hash, rows[0].id_instructor, nombre]
     );
     await client.query('COMMIT');

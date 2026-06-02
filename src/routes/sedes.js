@@ -21,7 +21,7 @@ router.get('/', auth, async (req, res) => {
 });
 
 // POST /api/sedes — agregar sede a un torneo
-router.post('/', auth, allow('admin','instructor'), async (req, res) => {
+router.post('/', auth, allow('admin'), async (req, res) => {
   const { id_torneo, nombre_sede, direccion, cupo_max=0 } = req.body;
   if (!id_torneo || !nombre_sede)
     return res.status(400).json({ error: 'Torneo y nombre de sede son obligatorios' });
@@ -38,7 +38,7 @@ router.post('/', auth, allow('admin','instructor'), async (req, res) => {
 });
 
 // PUT /api/sedes/:id
-router.put('/:id', auth, allow('admin','instructor'), async (req, res) => {
+router.put('/:id', auth, allow('admin'), async (req, res) => {
   const { nombre_sede, direccion, cupo_max } = req.body;
   try {
     const { rows } = await pool.query(

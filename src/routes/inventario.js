@@ -39,7 +39,7 @@ router.post('/', auth, allow('admin'), async (req, res) => {
 });
 
 // PUT /api/inventario/:id  — actualizar stock o datos
-router.put('/:id', auth, allow('admin','instructor'), async (req, res) => {
+router.put('/:id', auth, allow('admin'), async (req, res) => {
   const { descripcion, talla_modelo, precio_unitario, stock, stock_minimo } = req.body;
   try {
     const { rows } = await pool.query(

@@ -15,7 +15,7 @@ router.get('/', auth, async (req, res) => {
 });
 
 // POST /api/eventos
-router.post('/', auth, allow('admin','instructor'), async (req, res) => {
+router.post('/', auth, allow('admin'), async (req, res) => {
   const { titulo, tipo, fecha, lugar, descripcion } = req.body;
   if (!titulo || !fecha)
     return res.status(400).json({ error: 'Faltan campos obligatorios' });
@@ -33,7 +33,7 @@ router.post('/', auth, allow('admin','instructor'), async (req, res) => {
 });
 
 // PUT /api/eventos/:id
-router.put('/:id', auth, allow('admin','instructor'), async (req, res) => {
+router.put('/:id', auth, allow('admin'), async (req, res) => {
   const { titulo, tipo, fecha, lugar, descripcion } = req.body;
   try {
     const { rows } = await pool.query(
@@ -49,7 +49,7 @@ router.put('/:id', auth, allow('admin','instructor'), async (req, res) => {
 });
 
 // DELETE /api/eventos/:id
-router.delete('/:id', auth, allow('admin','instructor'), async (req, res) => {
+router.delete('/:id', auth, allow('admin'), async (req, res) => {
   try {
     const { rowCount } = await pool.query(
       'DELETE FROM eventos WHERE id_evento=$1', [req.params.id]

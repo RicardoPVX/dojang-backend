@@ -15,7 +15,7 @@ router.get('/', auth, async (req, res) => {
 });
 
 // POST /api/torneos — registrar torneo futuro
-router.post('/', auth, allow('admin','instructor'), async (req, res) => {
+router.post('/', auth, allow('admin'), async (req, res) => {
   const { nombre_torneo, sede, fecha } = req.body;
   if (!nombre_torneo || !fecha)
     return res.status(400).json({ error: 'Nombre y fecha son obligatorios' });
@@ -33,7 +33,7 @@ router.post('/', auth, allow('admin','instructor'), async (req, res) => {
 });
 
 // PUT /api/torneos/:id
-router.put('/:id', auth, allow('admin','instructor'), async (req, res) => {
+router.put('/:id', auth, allow('admin'), async (req, res) => {
   const { nombre_torneo, sede, fecha } = req.body;
   try {
     const { rows } = await pool.query(
@@ -49,7 +49,7 @@ router.put('/:id', auth, allow('admin','instructor'), async (req, res) => {
 });
 
 // DELETE /api/torneos/:id
-router.delete('/:id', auth, allow('admin','instructor'), async (req, res) => {
+router.delete('/:id', auth, allow('admin'), async (req, res) => {
   try {
     const { rowCount } = await pool.query(
       'DELETE FROM torneos WHERE id_torneo=$1', [req.params.id]

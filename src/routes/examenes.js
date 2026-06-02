@@ -23,7 +23,7 @@ router.get('/', auth, async (req, res) => {
 });
 
 // POST /api/examenes — crear examen (individual o grupal)
-router.post('/', auth, allow('admin','instructor'), async (req, res) => {
+router.post('/', auth, allow('admin'), async (req, res) => {
   const { fecha, observaciones, resultado = 'Pendiente',
           num_control_alumno, id_cinta_aspirada,
           nombre_examen, sede } = req.body;
@@ -57,7 +57,7 @@ router.post('/', auth, allow('admin','instructor'), async (req, res) => {
 });
 
 // PUT /api/examenes/:id — actualizar examen completo
-router.put('/:id', auth, allow('admin','instructor'), async (req, res) => {
+router.put('/:id', auth, allow('admin'), async (req, res) => {
   const { fecha, resultado, observaciones, nombre_examen, sede, id_cinta_aspirada } = req.body;
   try {
     const { rows } = await pool.query(
@@ -94,7 +94,7 @@ router.put('/:id', auth, allow('admin','instructor'), async (req, res) => {
 });
 
 // DELETE /api/examenes/:id
-router.delete('/:id', auth, allow('admin','instructor'), async (req, res) => {
+router.delete('/:id', auth, allow('admin'), async (req, res) => {
   try {
     const { rowCount } = await pool.query(
       'DELETE FROM examenes WHERE id_examen = $1', [req.params.id]
