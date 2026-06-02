@@ -89,15 +89,35 @@ router.put('/:id', auth, allow('admin'), async (req, res) => {
 router.delete('/:id', auth, allow('admin'), async (req, res) => {
   if (String(req.user.id_instructor) === String(req.params.id))
     return res.status(400).json({ error: 'No puedes eliminar tu propio perfil' });
+  if (String(req.params.id) === '1')
+    return res.status(400).json({ error: 'No se puede eliminar al maestro principal' });
+
+  const client = await pool.connect();
   try {
-    await pool.query('UPDATE clases SET id_instructor=1 WHERE id_instructor=$1', [req.params.id]);
-    await pool.query('UPDATE usuarios SET id_instructor=NULL WHERE id_instructor=$1', [req.params.id]);
-    const { rowCount } = await pool.query('DELETE FROM instructores WHERE id_instructor=$1', [req.params.id]);
-    if (!rowCount) return res.status(404).json({ error: 'No encontrado' });
+    await client.query('BEGIN');
+
+    // Reasignar clases y avances al maestro principal (id 1) para conservar el historial
+    await client.query('UPDATE clases  SET id_instructor=1 WHERE id_instructor=$1', [req.params.id]);
+    await client.query('UPDATE avances SET id_instructor=1 WHERE id_instructor=$1', [req.params.id]);
+
+    // Borrar su cuenta de acceso (antes solo se desvinculaba y quedaba huérfana)
+    await client.query('DELETE FROM usuarios WHERE id_instructor=$1', [req.params.id]);
+
+    // Borrar el instructor
+    const { rowCount } = await client.query('DELETE FROM instructores WHERE id_instructor=$1', [req.params.id]);
+    if (!rowCount) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'No encontrado' });
+    }
+
+    await client.query('COMMIT');
     res.json({ mensaje: 'Instructor eliminado' });
   } catch(err) {
-    console.error(err);
+    await client.query('ROLLBACK');
+    console.error('Error al eliminar instructor:', err);
     res.status(500).json({ error: 'Error al eliminar' });
+  } finally {
+    client.release();
   }
 });
 
