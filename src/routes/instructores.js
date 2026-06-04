@@ -103,24 +103,48 @@ router.put('/:id', auth, allow('admin'), async (req, res) => {
 
 // DELETE /api/instructores/:id
 router.delete('/:id', auth, allow('admin'), async (req, res) => {
-  if (String(req.user.id_instructor) === String(req.params.id))
+  const id = req.params.id;
+  if (String(req.user.id_instructor) === String(id))
     return res.status(400).json({ error: 'No puedes eliminar tu propio perfil' });
-  if (String(req.params.id) === '1')
+  if (String(id) === '1')
     return res.status(400).json({ error: 'No se puede eliminar al maestro principal' });
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
-    // Reasignar clases y avances al maestro principal (id 1) para conservar el historial
-    await client.query('UPDATE clases  SET id_instructor=1 WHERE id_instructor=$1', [req.params.id]);
-    await client.query('UPDATE avances SET id_instructor=1 WHERE id_instructor=$1', [req.params.id]);
+    // Buscar dinámicamente TODAS las tablas que referencian instructores(id_instructor),
+    // incluso las que no están en schema.sql (evita el error 500 por FK).
+    const fks = await client.query(`
+      SELECT tc.table_name, kcu.column_name, col.is_nullable
+      FROM information_schema.table_constraints tc
+      JOIN information_schema.key_column_usage kcu
+        ON tc.constraint_name = kcu.constraint_name AND tc.table_schema = kcu.table_schema
+      JOIN information_schema.constraint_column_usage ccu
+        ON tc.constraint_name = ccu.constraint_name AND tc.table_schema = ccu.table_schema
+      JOIN information_schema.columns col
+        ON col.table_name = tc.table_name AND col.column_name = kcu.column_name
+        AND col.table_schema = tc.table_schema
+      WHERE tc.constraint_type = 'FOREIGN KEY'
+        AND ccu.table_name = 'instructores'
+        AND ccu.column_name = 'id_instructor'
+    `);
 
-    // Borrar su cuenta de acceso (antes solo se desvinculaba y quedaba huérfana)
-    await client.query('DELETE FROM usuarios WHERE id_instructor=$1', [req.params.id]);
+    for (const fk of fks.rows) {
+      const t = fk.table_name, c = fk.column_name;
+      if (t === 'usuarios') {
+        // eliminar la cuenta de acceso del maestro
+        await client.query(`DELETE FROM usuarios WHERE ${c} = $1`, [id]);
+      } else if (fk.is_nullable === 'YES') {
+        // columnas opcionales: dejarlas en NULL
+        await client.query(`UPDATE ${t} SET ${c} = NULL WHERE ${c} = $1`, [id]);
+      } else {
+        // columnas obligatorias (clases, avances...): reasignar al maestro principal (id 1)
+        await client.query(`UPDATE ${t} SET ${c} = 1 WHERE ${c} = $1`, [id]);
+      }
+    }
 
-    // Borrar el instructor
-    const { rowCount } = await client.query('DELETE FROM instructores WHERE id_instructor=$1', [req.params.id]);
+    const { rowCount } = await client.query('DELETE FROM instructores WHERE id_instructor = $1', [id]);
     if (!rowCount) {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'No encontrado' });
@@ -131,7 +155,7 @@ router.delete('/:id', auth, allow('admin'), async (req, res) => {
   } catch(err) {
     await client.query('ROLLBACK');
     console.error('Error al eliminar instructor:', err);
-    res.status(500).json({ error: 'Error al eliminar' });
+    res.status(500).json({ error: 'Error al eliminar', detalle: err.message });
   } finally {
     client.release();
   }
