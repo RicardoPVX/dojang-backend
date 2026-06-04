@@ -36,6 +36,7 @@ app.use('/api/avances',    require('./routes/avances'));
 app.use('/api/torneos',    require('./routes/torneos'));
 app.use('/api/clases',     require('./routes/clases'));
 app.use('/api/instructores', require('./routes/instructores'));
+app.use('/api/dudas', require('./routes/dudas'));
 app.use('/api/lockers',     require('./routes/lockers'));
 app.use('/api/sedes',       require('./routes/sedes'));
 app.use('/api/equipo',     require('./routes/equipo'));
