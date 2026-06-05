@@ -10,7 +10,7 @@ router.get('/', auth, async (req, res) => {
       query = `SELECT p.*, r.nombre AS responsable_nombre
                FROM pagos p JOIN responsables r ON r.num_control = p.num_control_responsable
                WHERE p.num_control_responsable = $1 ORDER BY p.fecha_pago DESC`;
-      params = [req.user.id_responsable];
+      params = [req.user.num_control_responsable || req.user.id_responsable];
     } else {
       query = `SELECT p.*, r.nombre AS responsable_nombre
                FROM pagos p JOIN responsables r ON r.num_control = p.num_control_responsable
@@ -53,7 +53,7 @@ router.post('/', auth, allow('admin'), async (req, res) => {
     res.status(201).json(rows[0]);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Error al registrar pago' });
+    res.status(500).json({ error: 'Error al registrar pago', code: err.code, detalle: err.detail || err.message });
   }
 });
 
