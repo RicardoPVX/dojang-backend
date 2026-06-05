@@ -39,11 +39,12 @@ router.post('/registro-completo', auth, allow('admin','instructor'), async (req,
     const { rows: alumnoRows } = await client.query(
       `INSERT INTO alumnos
          (num_control, nombre, fecha_nacimiento, id_cinta_actual, num_control_responsable,
-          email, direccion, tipo_sangre, contacto_emergencia, tel_emergencia, notas_medicas)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+          email, direccion, tipo_sangre, contacto_emergencia, tel_emergencia, notas_medicas, dia_pago)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
       [num_control, nombre, fecha_nacimiento, id_cinta_actual || 1, resp_id,
        email || null, direccion || null, tipo_sangre || null,
-       contacto_emergencia || null, tel_emergencia || null, notas_medicas || null]
+       contacto_emergencia || null, tel_emergencia || null, notas_medicas || null,
+       (req.body.dia_pago === 15 ? 15 : 1)]
     );
 
     const bcrypt = require('bcrypt');
@@ -167,12 +168,14 @@ router.put('/:id', auth, allow('admin','instructor'), async (req, res) => {
        SET nombre=$1, fecha_nacimiento=$2, id_cinta_actual=$3,
            email=$4, direccion=$5, tipo_sangre=$6,
            contacto_emergencia=$7, tel_emergencia=$8, notas_medicas=$9,
-           fecha_ingreso=COALESCE($10::date, fecha_ingreso)
-       WHERE num_control=$11 RETURNING *`,
+           fecha_ingreso=COALESCE($10::date, fecha_ingreso),
+           dia_pago=$11
+       WHERE num_control=$12 RETURNING *`,
       [nombre, fecha_nacimiento, id_cinta_actual,
        email || null, direccion || null, tipo_sangre || null,
        contacto_emergencia || null, tel_emergencia || null, notas_medicas || null,
        fecha_ingreso || null,
+       (req.body.dia_pago === 15 ? 15 : 1),
        req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Alumno no encontrado' });
