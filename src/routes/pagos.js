@@ -93,4 +93,30 @@ router.delete('/:id', auth, allow('admin'), async (req, res) => {
   }
 });
 
+// PUT /api/pagos/:id — editar pago
+router.put('/:id', auth, allow('admin'), async (req, res) => {
+  const { monto_total, monto_abonado, fecha_pago, metodo_pago, tipo_pago, estado_pago, num_control_responsable } = req.body;
+  try {
+    const { rows } = await pool.query(
+      `UPDATE pagos SET
+         monto_total   = COALESCE($1, monto_total),
+         monto_abonado = COALESCE($2, monto_abonado),
+         fecha_pago    = COALESCE($3, fecha_pago),
+         metodo_pago   = COALESCE($4, metodo_pago),
+         tipo_pago     = COALESCE($5, tipo_pago),
+         estado_pago   = COALESCE($6, estado_pago),
+         num_control_responsable = COALESCE($7, num_control_responsable)
+       WHERE id_pago = $8
+       RETURNING *`,
+      [monto_total ?? null, monto_abonado ?? null, fecha_pago ?? null, metodo_pago ?? null,
+       tipo_pago ?? null, estado_pago ?? null, num_control_responsable ?? null, req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Pago no encontrado' });
+    res.json(rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al actualizar pago', code: err.code, detalle: err.detail || err.message });
+  }
+});
+
 module.exports = router;
