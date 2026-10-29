@@ -22,7 +22,7 @@ async function login(req, res) {
 // POST /api/auth/cambiar-pass — requiere token válido
 async function cambiarPass(req, res) {
   const { nuevaPassword } = req.body;
-  if (!nuevaPassword || nuevaPassword.length < 4)
+  if (!nuevaPassword || nuevaPassword.length < 6)
     return res.status(400).json({ error: 'Contraseña muy corta' });
 
   try {

@@ -9,20 +9,12 @@ const BASE_QUERY = `
   JOIN cintas c ON c.id_cinta = a.id_cinta_actual
   JOIN responsables r ON r.num_control = a.num_control_responsable`;
 
-// Devuelve solo num_control y nombre (ruta pública para el login del frontend)
-async function getPublico() {
-  const { rows } = await pool.query(
-    `SELECT a.num_control, a.nombre FROM alumnos a ORDER BY a.nombre`
-  );
-  return rows;
-}
-
 // Devuelve todos los alumnos (admin/instructor) o solo los del responsable
 async function getAll(user) {
   if (user.rol === 'responsable') {
     const { rows } = await pool.query(
       BASE_QUERY + ` WHERE a.num_control_responsable = $1 ORDER BY a.nombre`,
-      [user.num_control_responsable]
+      [user.id_responsable]
     );
     return rows;
   }
@@ -30,8 +22,15 @@ async function getAll(user) {
   return rows;
 }
 
-// Devuelve un alumno por su num_control
-async function getById(id) {
+// Devuelve un alumno por su num_control; un responsable solo ve a sus propios alumnos
+async function getById(id, user) {
+  if (user && user.rol === 'responsable') {
+    const { rows } = await pool.query(
+      BASE_QUERY + ` WHERE a.num_control = $1 AND a.num_control_responsable = $2`,
+      [id, user.id_responsable]
+    );
+    return rows[0] || null;
+  }
   const { rows } = await pool.query(
     BASE_QUERY + ` WHERE a.num_control = $1`, [id]
   );
@@ -119,6 +118,25 @@ async function update(id, data) {
   return rows[0] || null;
 }
 
+// Actualiza solo datos personales/médicos (lo que el responsable puede editar)
+async function updatePersonal(id, data, user) {
+  const { direccion, tipo_sangre, contacto_emergencia, tel_emergencia, notas_medicas } = data;
+  const params = [direccion || null, tipo_sangre || null,
+                  contacto_emergencia || null, tel_emergencia || null, notas_medicas || null, id];
+  let where = `WHERE num_control=$6`;
+  if (user.rol === 'responsable') {
+    where += ` AND num_control_responsable=$7`;
+    params.push(user.id_responsable);
+  }
+  const { rows } = await pool.query(
+    `UPDATE alumnos
+     SET direccion=$1, tipo_sangre=$2, contacto_emergencia=$3, tel_emergencia=$4, notas_medicas=$5
+     ${where} RETURNING *`,
+    params
+  );
+  return rows[0] || null;
+}
+
 // Elimina alumno + responsable + usuario (si es el único alumno) en transacción
 async function remove(id) {
   const client = await pool.connect();
@@ -154,4 +172,4 @@ async function remove(id) {
   }
 }
 
-module.exports = { getPublico, getAll, getById, create, registroCompleto, update, remove };
+module.exports = { getAll, getById, create, registroCompleto, update, updatePersonal, remove };

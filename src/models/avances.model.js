@@ -8,6 +8,14 @@ const BASE_QUERY = `
 
 // Devuelve avances filtrados por alumno, responsable o todos (admin/instructor)
 async function getAll(user, alumnoFiltro) {
+  // Un responsable solo puede filtrar entre sus propios alumnos
+  if (alumnoFiltro && user.rol === 'responsable') {
+    const { rows } = await pool.query(
+      BASE_QUERY + ` WHERE av.num_control_alumno = $1 AND a.num_control_responsable = $2 ORDER BY av.fecha DESC`,
+      [alumnoFiltro, user.id_responsable]
+    );
+    return rows;
+  }
   if (alumnoFiltro) {
     const { rows } = await pool.query(
       BASE_QUERY + ` WHERE av.num_control_alumno = $1 ORDER BY av.fecha DESC`,

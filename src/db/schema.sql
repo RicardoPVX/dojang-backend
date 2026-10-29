@@ -34,7 +34,13 @@ CREATE TABLE alumnos (
     fecha_nacimiento         DATE NOT NULL,
     fecha_ingreso            DATE DEFAULT CURRENT_DATE,
     id_cinta_actual          INT  NOT NULL REFERENCES cintas(id_cinta),
-    num_control_responsable  VARCHAR(20) NOT NULL REFERENCES responsables(num_control)
+    num_control_responsable  VARCHAR(20) NOT NULL REFERENCES responsables(num_control),
+    email                    VARCHAR(100),
+    direccion                TEXT,
+    tipo_sangre              VARCHAR(5),
+    contacto_emergencia      VARCHAR(100),
+    tel_emergencia           VARCHAR(20),
+    notas_medicas            TEXT
 );
 
 -- 5. CLASES
@@ -125,6 +131,16 @@ CREATE TABLE usuarios (
     -- Una de estas dos será NOT NULL según el rol:
     num_control_responsable VARCHAR(20) REFERENCES responsables(num_control),
     id_instructor           INT         REFERENCES instructores(id_instructor)
+);
+
+-- 14. EVENTOS  (exámenes de ascenso, torneos, especiales)
+CREATE TABLE eventos (
+    id_evento   SERIAL PRIMARY KEY,
+    titulo      VARCHAR(150) NOT NULL,
+    tipo        VARCHAR(20)  DEFAULT 'especial',  -- 'ascenso' | 'torneo' | 'especial'
+    fecha       DATE NOT NULL,
+    descripcion TEXT,
+    lugar       VARCHAR(150)
 );
 
 -- ============================================================

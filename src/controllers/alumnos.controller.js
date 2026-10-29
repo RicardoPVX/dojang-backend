@@ -1,15 +1,5 @@
 const Alumno = require('../models/alumnos.model');
 
-// GET /api/alumnos/publico — sin token
-async function getPublico(req, res) {
-  try {
-    const alumnos = await Alumno.getPublico();
-    res.json(alumnos);
-  } catch (err) {
-    res.status(500).json({ error: 'Error' });
-  }
-}
-
 // POST /api/alumnos/registro-completo — admin/instructor
 async function registroCompleto(req, res) {
   const { num_control, nombre, fecha_nacimiento,
@@ -42,7 +32,7 @@ async function getAlumnos(req, res) {
 // GET /api/alumnos/:id
 async function getAlumno(req, res) {
   try {
-    const alumno = await Alumno.getById(req.params.id);
+    const alumno = await Alumno.getById(req.params.id, req.user);
     if (!alumno) return res.status(404).json({ error: 'Alumno no encontrado' });
     res.json(alumno);
   } catch (err) {
@@ -77,6 +67,18 @@ async function actualizarAlumno(req, res) {
   }
 }
 
+// PUT /api/alumnos/:id/personal — admin/instructor o el responsable del alumno
+async function actualizarPersonal(req, res) {
+  try {
+    const alumno = await Alumno.updatePersonal(req.params.id, req.body, req.user);
+    if (!alumno) return res.status(404).json({ error: 'Alumno no encontrado' });
+    res.json(alumno);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al actualizar datos personales' });
+  }
+}
+
 // DELETE /api/alumnos/:id — admin
 async function eliminarAlumno(req, res) {
   try {
@@ -90,6 +92,6 @@ async function eliminarAlumno(req, res) {
 }
 
 module.exports = {
-  getPublico, registroCompleto, getAlumnos, getAlumno,
-  crearAlumno, actualizarAlumno, eliminarAlumno
+  registroCompleto, getAlumnos, getAlumno,
+  crearAlumno, actualizarAlumno, actualizarPersonal, eliminarAlumno
 };
