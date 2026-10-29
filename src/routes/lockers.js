@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const pool   = require('../db/pool');
 const { auth, allow } = require('../middleware/auth');
+const { puedeTocarAlumno } = require('../middleware/propiedad');
 
 // GET /api/lockers — todos los roles pueden ver
 router.get('/', auth, async (req, res) => {
@@ -43,6 +44,8 @@ router.put('/:id/asignar', auth, async (req, res) => {
   const { num_control_alumno } = req.body;
   if (!num_control_alumno)
     return res.status(400).json({ error: 'num_control_alumno es obligatorio' });
+  if (!(await puedeTocarAlumno(req.user, num_control_alumno)))
+    return res.status(403).json({ error: 'Sin permiso para esta acción' });
 
   const client = await pool.connect();
   try {
@@ -91,6 +94,13 @@ router.put('/:id/asignar', auth, async (req, res) => {
 // PUT /api/lockers/:id/liberar — alumno libera su propio locker (o admin libera cualquiera)
 router.put('/:id/liberar', auth, async (req, res) => {
   try {
+    if (req.user.rol === 'responsable') {
+      const { rows: actual } = await pool.query(
+        'SELECT num_control_alumno FROM lockers WHERE id_locker = $1', [req.params.id]
+      );
+      if (!actual.length || !(await puedeTocarAlumno(req.user, actual[0].num_control_alumno)))
+        return res.status(403).json({ error: 'Sin permiso para esta acción' });
+    }
     const { rows } = await pool.query(
       `UPDATE lockers
        SET num_control_alumno = NULL, fecha_asignacion = NULL

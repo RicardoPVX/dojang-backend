@@ -9,7 +9,10 @@ router.post('/', auth, async (req, res) => {
     return res.status(400).json({ error: 'El mensaje no puede estar vacío' });
   try {
     const remitente   = req.body.remitente   || req.user.username || 'Usuario';
-    const num_control = req.body.num_control || req.user.num_control_responsable || null;
+    // Un responsable no puede firmar dudas a nombre de otra familia
+    const num_control = req.user.rol === 'responsable'
+      ? req.user.id_responsable
+      : (req.body.num_control || null);
     const { rows } = await pool.query(
       `INSERT INTO dudas (remitente, num_control, mensaje) VALUES ($1,$2,$3) RETURNING *`,
       [remitente, num_control, mensaje.trim()]

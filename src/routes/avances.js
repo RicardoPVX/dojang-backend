@@ -7,7 +7,17 @@ router.get('/', auth, async (req, res) => {
   try {
     let query, params = [];
 
-    if (req.query.alumno) {
+    if (req.query.alumno && req.user.rol === 'responsable') {
+      // Un responsable solo puede filtrar entre sus propios alumnos
+      query = `
+        SELECT av.*, i.nombre AS instructor_nombre, a.nombre AS alumno_nombre
+        FROM avances av
+        JOIN instructores i ON i.id_instructor = av.id_instructor
+        JOIN alumnos a ON a.num_control = av.num_control_alumno
+        WHERE av.num_control_alumno = $1 AND a.num_control_responsable = $2
+        ORDER BY av.fecha DESC`;
+      params = [req.query.alumno, req.user.id_responsable];
+    } else if (req.query.alumno) {
       // Filtrar por alumno específico
       query = `
         SELECT av.*, i.nombre AS instructor_nombre, a.nombre AS alumno_nombre

@@ -3,7 +3,7 @@ const pool   = require('../db/pool');
 const { auth, allow } = require('../middleware/auth');
 
 // GET /api/clases/alumnos — asignaciones alumno-clase (antes que /:id)
-router.get('/alumnos', auth, async (req, res) => {
+router.get('/alumnos', auth, allow('admin','instructor'), async (req, res) => {
   try {
     const { rows } = await pool.query(`
       SELECT i.num_control_alumno, i.id_clase,
