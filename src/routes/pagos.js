@@ -7,13 +7,17 @@ router.get('/', auth, async (req, res) => {
   try {
     let query, params = [];
     if (req.user.rol === 'responsable') {
-      query = `SELECT p.*, r.nombre AS responsable_nombre
+      query = `SELECT p.*, r.nombre AS responsable_nombre,
+                      m.mes_correspondiente, m.anio AS anio_correspondiente
                FROM pagos p JOIN responsables r ON r.num_control = p.num_control_responsable
+               LEFT JOIN mensualidades m ON m.id_pago = p.id_pago
                WHERE p.num_control_responsable = $1 ORDER BY p.fecha_pago DESC`;
       params = [req.user.num_control_responsable || req.user.id_responsable];
     } else {
-      query = `SELECT p.*, r.nombre AS responsable_nombre
+      query = `SELECT p.*, r.nombre AS responsable_nombre,
+                      m.mes_correspondiente, m.anio AS anio_correspondiente
                FROM pagos p JOIN responsables r ON r.num_control = p.num_control_responsable
+               LEFT JOIN mensualidades m ON m.id_pago = p.id_pago
                ORDER BY p.fecha_pago DESC`;
     }
     const { rows } = await pool.query(query, params);
