@@ -64,7 +64,12 @@ CREATE TABLE pagos (
     metodo_pago              VARCHAR(50),   -- 'Contado' | 'A plazos'
     tipo_pago                VARCHAR(50),   -- 'Mensualidad' | 'Equipo' | 'Examen' | 'Torneo'
     estado_pago              VARCHAR(20) DEFAULT 'Pendiente', -- 'Pendiente' | 'Liquidado' | 'Vencido'
-    num_control_responsable  VARCHAR(20) NOT NULL REFERENCES responsables(num_control)
+    num_control_responsable  VARCHAR(20) NOT NULL REFERENCES responsables(num_control),
+    num_cuotas               INT NOT NULL DEFAULT 1,
+    cuotas_pagadas           INT NOT NULL DEFAULT 0,
+    monto_cuota              DECIMAL(10,2),  -- NULL: se reparte el saldo entre las cuotas restantes
+    proximo_vencimiento      DATE,
+    notas                    TEXT
 );
 
 -- 8. MENSUALIDADES  (detalle de un pago tipo Mensualidad)
