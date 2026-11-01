@@ -31,7 +31,7 @@ router.get('/', auth, async (req, res) => {
 router.post('/', auth, allow('admin'), async (req, res) => {
   const { monto_total, monto_abonado = 0, fecha_pago, metodo_pago,
           tipo_pago, estado_pago = 'Pendiente', num_control_responsable,
-          num_cuotas = 1, cuotas_pagadas, monto_cuota, proximo_vencimiento, notas } = req.body;
+          num_cuotas = 1, cuotas_pagadas, monto_cuota, proximo_vencimiento, notas, num_control_alumno } = req.body;
 
   if (!monto_total || !tipo_pago || !num_control_responsable)
     return res.status(400).json({ error: 'Faltan campos obligatorios' });
@@ -42,12 +42,12 @@ router.post('/', auth, allow('admin'), async (req, res) => {
     const { rows } = await pool.query(
       `INSERT INTO pagos (monto_total, monto_abonado, fecha_pago, metodo_pago,
         tipo_pago, estado_pago, num_control_responsable,
-        num_cuotas, cuotas_pagadas, monto_cuota, proximo_vencimiento, notas)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+        num_cuotas, cuotas_pagadas, monto_cuota, proximo_vencimiento, notas, num_control_alumno)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
       [monto_total, monto_abonado, fecha_pago || new Date().toISOString().split('T')[0],
        metodo_pago, tipo_pago, estado_pago, num_control_responsable,
        num_cuotas, cuotas_pagadas ?? (estado_pago === 'Liquidado' ? num_cuotas : 0),
-       monto_cuota || null, proximo_vencimiento || null, notas || null]
+       monto_cuota || null, proximo_vencimiento || null, notas || null, num_control_alumno || null]
     );
 
     // Si es mensualidad, crear detalle automáticamente
@@ -67,8 +67,8 @@ router.post('/', auth, allow('admin'), async (req, res) => {
   }
 });
 
-// PUT /api/pagos/:id/abonar  — registra una cuota. Sin "abono" en el body, el monto lo calcula
-// el servidor: la cuota del plan, y en la última cuota todo el saldo. Nunca se abona de más.
+// PUT /api/pagos/:id/abonar  — registra un abono por el monto indicado. Nunca se abona de más del saldo.
+// Sin "abono" en el body, usa la cuota del plan (planes creados antes de los abonos libres).
 router.put('/:id/abonar', auth, allow('admin'), async (req, res) => {
   const { abono } = req.body;
   if (abono !== undefined && (!abono || abono <= 0))
@@ -81,7 +81,7 @@ router.put('/:id/abonar', auth, allow('admin'), async (req, res) => {
            cuotas_pagadas = LEAST(p.cuotas_pagadas + 1, p.num_cuotas),
            estado_pago    = CASE WHEN p.monto_abonado + c.abono >= p.monto_total THEN 'Liquidado' ELSE p.estado_pago END,
            proximo_vencimiento = CASE WHEN p.monto_abonado + c.abono >= p.monto_total THEN NULL
-                                      ELSE (p.proximo_vencimiento + INTERVAL '1 month')::date END
+                                      ELSE p.proximo_vencimiento END
        FROM (
          SELECT id_pago, LEAST(saldo, COALESCE($1::numeric,
                   CASE WHEN cuotas_pagadas + 1 >= num_cuotas THEN saldo
@@ -118,7 +118,7 @@ router.delete('/:id', auth, allow('admin'), async (req, res) => {
 // PUT /api/pagos/:id — editar pago
 router.put('/:id', auth, allow('admin'), async (req, res) => {
   const { monto_total, monto_abonado, fecha_pago, metodo_pago, tipo_pago, estado_pago, num_control_responsable,
-          num_cuotas, cuotas_pagadas, monto_cuota, proximo_vencimiento, notas } = req.body;
+          num_cuotas, cuotas_pagadas, monto_cuota, proximo_vencimiento, notas, num_control_alumno } = req.body;
   if (num_cuotas !== undefined && (!Number.isInteger(num_cuotas) || num_cuotas < 1))
     return res.status(400).json({ error: 'Número de cuotas inválido' });
   try {
@@ -131,6 +131,7 @@ router.put('/:id', auth, allow('admin'), async (req, res) => {
          tipo_pago     = COALESCE($5, tipo_pago),
          estado_pago   = COALESCE($6, estado_pago),
          num_control_responsable = COALESCE($7, num_control_responsable),
+         num_control_alumno = COALESCE($17, num_control_alumno),
          num_cuotas     = COALESCE($9, num_cuotas),
          cuotas_pagadas = COALESCE($10, cuotas_pagadas),
          -- Estos tres se pueden vaciar: solo se conservan si no vienen en el body
@@ -144,7 +145,7 @@ router.put('/:id', auth, allow('admin'), async (req, res) => {
        num_cuotas ?? null, cuotas_pagadas ?? null,
        monto_cuota !== undefined, monto_cuota || null,
        proximo_vencimiento !== undefined, proximo_vencimiento || null,
-       notas !== undefined, notas || null]
+       notas !== undefined, notas || null, num_control_alumno ?? null]
     );
     if (!rows.length) return res.status(404).json({ error: 'Pago no encontrado' });
     res.json(rows[0]);

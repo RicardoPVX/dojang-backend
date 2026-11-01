@@ -8,6 +8,9 @@ function auth(req, res, next) {
   const token = header.split(' ')[1];   // "Bearer <token>"
   try {
     req.user = jwt.verify(token, process.env.JWT_SECRET);
+    // Con contraseña temporal solo se puede hacer una cosa: cambiarla
+    if (req.user.debe_cambiar && req.originalUrl.split('?')[0] !== '/api/auth/cambiar-pass')
+      return res.status(403).json({ error: 'Debes cambiar tu contraseña temporal' });
     next();
   } catch {
     res.status(401).json({ error: 'Token inválido o expirado' });
