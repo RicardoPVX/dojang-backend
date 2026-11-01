@@ -5,7 +5,7 @@ const pool    = require('../db/pool');
 const { auth } = require('../middleware/auth');
 const { rateLimit } = require('../middleware/rateLimit');
 
-// Máx. 10 intentos de login por IP cada 15 minutos
+// Máx. 10 intentos fallidos de login por IP cada 15 minutos
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, max: 10,
   message: 'Demasiados intentos. Espera unos minutos e intenta de nuevo.'
@@ -20,7 +20,8 @@ router.post('/login', loginLimiter, async (req, res) => {
 
   try {
     const { rows } = await pool.query(
-      'SELECT * FROM usuarios WHERE username = $1', [username]
+      // El campo del ID se ve siempre en mayúsculas: no distinguirlas evita rechazos que el usuario no puede ver
+      'SELECT * FROM usuarios WHERE LOWER(username) = LOWER($1)', [String(username).trim()]
     );
     if (!rows.length)
       return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
@@ -30,6 +31,10 @@ router.post('/login', loginLimiter, async (req, res) => {
     if (!ok)
       return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
 
+    // "CAMBIAR" era la contraseña inicial de todas las cuentas: cualquiera con el ID podía usarla
+    if (password === 'CAMBIAR')
+      return res.status(403).json({ error: 'Tu cuenta no está activada. Pide tu contraseña temporal a la escuela.' });
+
     // Genera token con 8 horas de duración
     const token = jwt.sign(
       {
@@ -37,13 +42,14 @@ router.post('/login', loginLimiter, async (req, res) => {
         username:    user.username,
         rol:         user.rol,
         id_responsable: user.num_control_responsable,
-        id_instructor:  user.id_instructor
+        id_instructor:  user.id_instructor,
+        debe_cambiar:   user.debe_cambiar
       },
       process.env.JWT_SECRET,
       { expiresIn: '8h' }
     );
 
-    res.json({ token, rol: user.rol, username: user.username, nombre: user.nombre || user.username, id_instructor: user.id_instructor || null });
+    res.json({ token, rol: user.rol, username: user.username, nombre: user.nombre || user.username, id_instructor: user.id_instructor || null, debe_cambiar: user.debe_cambiar });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Error del servidor' });
@@ -55,11 +61,13 @@ router.post('/cambiar-pass', auth, async (req, res) => {
   const { nuevaPassword } = req.body;
   if (!nuevaPassword || nuevaPassword.length < 6)
     return res.status(400).json({ error: 'Contraseña muy corta' });
+  if (nuevaPassword.toUpperCase() === 'CAMBIAR')
+    return res.status(400).json({ error: 'Elige otra contraseña' });
   try {
     const bcrypt = require('bcrypt');
     const hash = await bcrypt.hash(nuevaPassword, 10);
     await pool.query(
-      `UPDATE usuarios SET password=$1 WHERE username=$2`,
+      `UPDATE usuarios SET password=$1, debe_cambiar=false WHERE username=$2`,
       [hash, req.user.username]
     );
     res.json({ ok: true });
