@@ -1,18 +1,7 @@
 const router  = require('express').Router();
 const pool    = require('../db/pool');
 const { auth, allow } = require('../middleware/auth');
-
-// GET /api/alumnos/publico — sin token, para el login del frontend
-router.get('/publico', async (req, res) => {
-  try {
-    const { rows } = await pool.query(
-      `SELECT a.num_control, a.nombre FROM alumnos a ORDER BY a.nombre`
-    );
-    res.json(rows);
-  } catch (err) {
-    res.status(500).json({ error: 'Error' });
-  }
-});
+const { puedeTocarAlumno } = require('../middleware/propiedad');
 
 // POST /api/alumnos/registro-completo
 router.post('/registro-completo', auth, allow('admin','instructor'), async (req, res) => {
@@ -87,7 +76,7 @@ router.get('/', auth, async (req, res) => {
         ) ins ON true
         LEFT JOIN clases cl ON cl.id_clase = ins.id_clase
         WHERE a.num_control_responsable = $1 ORDER BY a.nombre`;
-      params = [req.user.num_control_responsable];
+      params = [req.user.id_responsable];
     } else {
       query = `
         SELECT a.*, c.color AS cinta_color, c.nombre_grado,
@@ -113,9 +102,11 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
-// GET /api/alumnos/:id
+// GET /api/alumnos/:id — un responsable solo puede ver a sus propios alumnos
 router.get('/:id', auth, async (req, res) => {
   try {
+    if (!(await puedeTocarAlumno(req.user, req.params.id)))
+      return res.status(404).json({ error: 'Alumno no encontrado' });
     const { rows } = await pool.query(
       `SELECT a.*, c.color AS cinta_color, c.nombre_grado,
               r.nombre AS responsable_nombre, r.telefono AS responsable_tel,
@@ -183,6 +174,27 @@ router.put('/:id', auth, allow('admin','instructor'), async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Error al actualizar alumno' });
+  }
+});
+
+// PUT /api/alumnos/:id/personal — el responsable edita datos médicos/emergencia de su alumno
+router.put('/:id/personal', auth, async (req, res) => {
+  const { direccion, tipo_sangre, contacto_emergencia, tel_emergencia, notas_medicas } = req.body;
+  try {
+    if (!(await puedeTocarAlumno(req.user, req.params.id)))
+      return res.status(404).json({ error: 'Alumno no encontrado' });
+    const { rows } = await pool.query(
+      `UPDATE alumnos
+       SET direccion=$1, tipo_sangre=$2, contacto_emergencia=$3, tel_emergencia=$4, notas_medicas=$5
+       WHERE num_control=$6 RETURNING *`,
+      [direccion || null, tipo_sangre || null, contacto_emergencia || null,
+       tel_emergencia || null, notas_medicas || null, req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Alumno no encontrado' });
+    res.json(rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al actualizar datos personales' });
   }
 });
 

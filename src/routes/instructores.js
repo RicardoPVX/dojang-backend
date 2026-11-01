@@ -3,22 +3,6 @@ const pool    = require('../db/pool');
 const bcrypt  = require('bcrypt');
 const { auth, allow } = require('../middleware/auth');
 
-// GET /api/instructores/publico — sin token, para que el login reconozca maestros
-router.get('/publico', async (req, res) => {
-  try {
-    const { rows } = await pool.query(`
-      SELECT u.username, i.nombre
-      FROM usuarios u
-      JOIN instructores i ON i.id_instructor = u.id_instructor
-      WHERE u.rol = 'instructor'
-      ORDER BY i.nombre
-    `);
-    res.json(rows);
-  } catch (err) {
-    res.status(500).json({ error: 'Error' });
-  }
-});
-
 // GET /api/instructores
 router.get('/', auth, async (req, res) => {
   try {

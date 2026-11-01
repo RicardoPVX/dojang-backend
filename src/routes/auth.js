@@ -3,10 +3,17 @@ const bcrypt  = require('bcrypt');
 const jwt     = require('jsonwebtoken');
 const pool    = require('../db/pool');
 const { auth } = require('../middleware/auth');
+const { rateLimit } = require('../middleware/rateLimit');
+
+// Máx. 10 intentos de login por IP cada 15 minutos
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, max: 10,
+  message: 'Demasiados intentos. Espera unos minutos e intenta de nuevo.'
+});
 
 // POST /api/auth/login
 // Body: { username, password }
-router.post('/login', async (req, res) => {
+router.post('/login', loginLimiter, async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password)
     return res.status(400).json({ error: 'Faltan credenciales' });
@@ -46,7 +53,7 @@ router.post('/login', async (req, res) => {
 // POST /api/auth/cambiar-pass — alumno cambia su contraseña en primer acceso
 router.post('/cambiar-pass', auth, async (req, res) => {
   const { nuevaPassword } = req.body;
-  if (!nuevaPassword || nuevaPassword.length < 4)
+  if (!nuevaPassword || nuevaPassword.length < 6)
     return res.status(400).json({ error: 'Contraseña muy corta' });
   try {
     const bcrypt = require('bcrypt');

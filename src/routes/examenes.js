@@ -3,8 +3,10 @@ const pool   = require('../db/pool');
 const { auth, allow } = require('../middleware/auth');
 
 // GET /api/examenes — todos los exámenes (individuales y grupales)
+// Un responsable solo ve los de sus alumnos y los grupales (sin alumno asignado)
 router.get('/', auth, async (req, res) => {
   try {
+    const esResponsable = req.user.rol === 'responsable';
     const { rows } = await pool.query(`
       SELECT e.*,
              a.nombre AS alumno_nombre,
@@ -13,8 +15,9 @@ router.get('/', auth, async (req, res) => {
       FROM examenes e
       LEFT JOIN alumnos a  ON a.num_control = e.num_control_alumno
       LEFT JOIN cintas  ca ON ca.id_cinta   = e.id_cinta_aspirada
+      ${esResponsable ? 'WHERE e.num_control_alumno IS NULL OR a.num_control_responsable = $1' : ''}
       ORDER BY e.fecha DESC
-    `);
+    `, esResponsable ? [req.user.id_responsable] : []);
     res.json(rows);
   } catch (err) {
     console.error(err);

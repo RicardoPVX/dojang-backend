@@ -3,17 +3,16 @@ const express = require('express');
 const cors    = require('cors');
 
 const app = express();
+app.set('trust proxy', 1);   // Render está detrás de un proxy: req.ip = IP real del cliente
 
 // ── Middlewares globales ──────────────────────────────────────
 app.use(cors({
   origin: function(origin, callback) {
-    // Permite cualquier subdominio de vercel.app, localhost y sin origen (Postman, etc.)
+    // Permite cualquier subdominio de vercel.app, localhost (cualquier puerto) y sin origen (Postman, etc.)
     if (!origin) return callback(null, true);
     if (
       origin.endsWith('.vercel.app') ||
-      origin === 'http://localhost:3001' ||
-      origin === 'http://localhost:5500' ||
-      origin === 'http://127.0.0.1:5500'
+      /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)
     ) {
       return callback(null, true);
     }
@@ -40,6 +39,7 @@ app.use('/api/dudas', require('./routes/dudas'));
 app.use('/api/lockers',     require('./routes/lockers'));
 app.use('/api/sedes',       require('./routes/sedes'));
 app.use('/api/equipo',     require('./routes/equipo'));
+app.use('/api/eventos',    require('./routes/eventos'));
 
 // ── Ruta de salud
 app.get('/health', (_, res) => res.json({ status: 'ok' }));

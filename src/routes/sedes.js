@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const pool   = require('../db/pool');
 const { auth, allow } = require('../middleware/auth');
+const { puedeTocarAlumno } = require('../middleware/propiedad');
 
 // GET /api/sedes?id_torneo=X
 router.get('/', auth, async (req, res) => {
@@ -67,6 +68,8 @@ router.post('/:id/inscribir', auth, async (req, res) => {
   if (!num_control_alumno)
     return res.status(400).json({ error: 'num_control_alumno es obligatorio' });
   try {
+    if (!(await puedeTocarAlumno(req.user, num_control_alumno)))
+      return res.status(403).json({ error: 'Sin permiso para esta acción' });
     // Cancelar inscripción previa del alumno en este torneo
     await pool.query(
       `DELETE FROM inscripciones_torneo it
@@ -91,6 +94,8 @@ router.post('/:id/inscribir', auth, async (req, res) => {
 // DELETE /api/sedes/:id/inscribir/:alumnoId — cancelar inscripción
 router.delete('/:id/inscribir/:alumnoId', auth, async (req, res) => {
   try {
+    if (!(await puedeTocarAlumno(req.user, req.params.alumnoId)))
+      return res.status(403).json({ error: 'Sin permiso para esta acción' });
     await pool.query(
       'DELETE FROM inscripciones_torneo WHERE id_sede=$1 AND num_control_alumno=$2',
       [req.params.id, req.params.alumnoId]
