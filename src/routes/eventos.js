@@ -23,7 +23,7 @@ router.post('/', auth, allow('admin'), async (req, res) => {
     const { rows } = await pool.query(
       `INSERT INTO eventos (titulo, tipo, fecha, lugar, descripcion)
        VALUES ($1,$2,$3,$4,$5) RETURNING *`,
-      [titulo, tipo||'especial', fecha, lugar||null, descripcion||null]
+      [titulo, tipo||'otro', fecha, lugar||null, descripcion||null]
     );
     res.status(201).json(rows[0]);
   } catch (err) {
@@ -39,7 +39,7 @@ router.put('/:id', auth, allow('admin'), async (req, res) => {
     const { rows } = await pool.query(
       `UPDATE eventos SET titulo=$1, tipo=$2, fecha=$3, lugar=$4, descripcion=$5
        WHERE id_evento=$6 RETURNING *`,
-      [titulo, tipo||'especial', fecha, lugar||null, descripcion||null, req.params.id]
+      [titulo, tipo||'otro', fecha, lugar||null, descripcion||null, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Evento no encontrado' });
     res.json(rows[0]);

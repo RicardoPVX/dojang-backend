@@ -20,20 +20,26 @@ router.post('/login', loginLimiter, async (req, res) => {
 
   try {
     const { rows } = await pool.query(
-      // El campo del ID se ve siempre en mayúsculas: no distinguirlas evita rechazos que el usuario no puede ver
-      'SELECT * FROM usuarios WHERE LOWER(username) = LOWER($1)', [String(username).trim()]
+      // El campo del ID se ve siempre en mayúsculas: no distinguirlas evita rechazos que el usuario no puede ver.
+      // Un tutor tiene una sola cuenta, y entra con el ID de cualquiera de sus alumnos.
+      `SELECT u.* FROM usuarios u
+        WHERE LOWER(u.username) = LOWER($1)
+           OR u.num_control_responsable = (SELECT a.num_control_responsable FROM alumnos a
+                                            WHERE LOWER(a.num_control) = LOWER($1))
+        ORDER BY (LOWER(u.username) = LOWER($1)) DESC LIMIT 1`,
+      [String(username).trim()]
     );
     if (!rows.length)
       return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
 
+    // "CAMBIAR" es la contraseña inicial: da un único acceso, que solo sirve para elegir la definitiva.
+    // Al cambiarla deja de coincidir, así que no se puede volver a usar.
+    const esCambiar = String(password).trim().toUpperCase() === 'CAMBIAR';
     const user = rows[0];
-    const ok   = await bcrypt.compare(password, user.password);
+    const ok   = await bcrypt.compare(esCambiar ? 'CAMBIAR' : password, user.password);
     if (!ok)
       return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
-
-    // "CAMBIAR" era la contraseña inicial de todas las cuentas: cualquiera con el ID podía usarla
-    if (password === 'CAMBIAR')
-      return res.status(403).json({ error: 'Tu cuenta no está activada. Pide tu contraseña temporal a la escuela.' });
+    const debeCambiar = user.debe_cambiar || esCambiar;
 
     // Genera token con 8 horas de duración
     const token = jwt.sign(
@@ -43,13 +49,13 @@ router.post('/login', loginLimiter, async (req, res) => {
         rol:         user.rol,
         id_responsable: user.num_control_responsable,
         id_instructor:  user.id_instructor,
-        debe_cambiar:   user.debe_cambiar
+        debe_cambiar:   debeCambiar
       },
       process.env.JWT_SECRET,
       { expiresIn: '8h' }
     );
 
-    res.json({ token, rol: user.rol, username: user.username, nombre: user.nombre || user.username, id_instructor: user.id_instructor || null, debe_cambiar: user.debe_cambiar });
+    res.json({ token, rol: user.rol, username: user.username, nombre: user.nombre || user.username, id_instructor: user.id_instructor || null, debe_cambiar: debeCambiar });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Error del servidor' });
