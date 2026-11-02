@@ -99,4 +99,23 @@ router.put('/perfil', auth, async (req, res) => {
   }
 });
 
+// PUT /api/auth/mi-contacto — el tutor actualiza su propio teléfono
+router.put('/mi-contacto', auth, async (req, res) => {
+  if (req.user.rol !== 'responsable')
+    return res.status(403).json({ error: 'Sin permiso para esta acción' });
+  const telefono = String(req.body.telefono || '').trim();
+  if (telefono.length < 7 || telefono.length > 20)
+    return res.status(400).json({ error: 'Teléfono inválido' });
+  try {
+    await pool.query(
+      'UPDATE responsables SET telefono=$1 WHERE num_control=$2',
+      [telefono, req.user.id_responsable]
+    );
+    res.json({ ok: true, telefono });
+  } catch(err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al actualizar el teléfono' });
+  }
+});
+
 module.exports = router;
